@@ -1,0 +1,818 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: root <root@iDeas20.localdomain>
+Date: Tue, 26 Aug 2025 21:12:23 +1000
+Subject: [PATCH] Vanilla Commands Reimplementation
+
+
+diff --git a/net/minecraft/commands/Commands.java b/net/minecraft/commands/Commands.java
+index ad19e9e599b26dfdb53929d9410860cb1b97698c..e80193333f2bc0290c52fd8b781e53bb617b4494 100644
+--- a/net/minecraft/commands/Commands.java
++++ b/net/minecraft/commands/Commands.java
+@@ -185,15 +185,15 @@ public class Commands {
+         AdvancementCommands.register(this.dispatcher);
+         AttributeCommand.register(this.dispatcher, context);
+         ExecuteCommand.register(this.dispatcher, context);
+-        //BossBarCommands.register(this.dispatcher, context); // Folia - region threading - TODO
++        BossBarCommands.register(this.dispatcher, context); // Folia - vanilla commands
+         ClearInventoryCommands.register(this.dispatcher, context);
+-        //CloneCommands.register(this.dispatcher, context); // Folia - region threading - TODO
++        CloneCommands.register(this.dispatcher, context); // Folia - vanilla commands
+         DamageCommand.register(this.dispatcher, context);
+         //DataCommands.register(this.dispatcher); // Folia - region threading - TODO
+         //DataPackCommand.register(this.dispatcher, context); // Folia - region threading - TODO
+         //DebugCommand.register(this.dispatcher); // Folia - region threading - TODO
+         DefaultGameModeCommands.register(this.dispatcher);
+-        //DialogCommand.register(this.dispatcher, context); // Folia - region threading - TODO
++        DialogCommand.register(this.dispatcher, context); // Folia - vanilla commands
+         DifficultyCommand.register(this.dispatcher);
+         EffectCommands.register(this.dispatcher, context);
+         EmoteCommands.register(this.dispatcher);
+@@ -207,7 +207,7 @@ public class Commands {
+         GameRuleCommand.register(this.dispatcher, context);
+         GiveCommand.register(this.dispatcher, context);
+         HelpCommand.register(this.dispatcher);
+-        //ItemCommands.register(this.dispatcher, context); // Folia - region threading - TODO later
++        ItemCommands.register(this.dispatcher, context); // Folia - vanilla commands
+         KickCommand.register(this.dispatcher);
+         KillCommand.register(this.dispatcher);
+         ListPlayersCommand.register(this.dispatcher);
+@@ -221,31 +221,31 @@ public class Commands {
+         //ReloadCommand.register(this.dispatcher); // Folia - region threading
+         RecipeCommand.register(this.dispatcher);
+         //ReturnCommand.register(this.dispatcher); // Folia - region threading - TODO later
+-        //RideCommand.register(this.dispatcher); // Folia - region threading - TODO later
+-        //RotateCommand.register(this.dispatcher); // Folia - region threading - TODO later
++        RideCommand.register(this.dispatcher); // Folia - vanilla commands
++        RotateCommand.register(this.dispatcher); // Folia - vanilla commands
+         SayCommand.register(this.dispatcher);
+         //ScheduleCommand.register(this.dispatcher); // Folia - region threading
+-        //ScoreboardCommand.register(this.dispatcher, context); // Folia - region threading
++        ScoreboardCommand.register(this.dispatcher, context); // Folia - vanilla commands
+         SeedCommand.register(this.dispatcher, selection != Commands.CommandSelection.INTEGRATED);
+         VersionCommand.register(this.dispatcher, selection != Commands.CommandSelection.INTEGRATED);
+         SetBlockCommand.register(this.dispatcher, context);
+         SetSpawnCommand.register(this.dispatcher);
+         SetWorldSpawnCommand.register(this.dispatcher);
+         //SpectateCommand.register(this.dispatcher); // Folia - region threading - TODO later
+-        //SpreadPlayersCommand.register(this.dispatcher); // Folia - region threading - TODO later
++        SpreadPlayersCommand.register(this.dispatcher); // Folia - vanilla commands
+         StopSoundCommand.register(this.dispatcher);
+         SummonCommand.register(this.dispatcher, context);
+-        //TagCommand.register(this.dispatcher); // Folia - region threading - TODO later
+-        //TeamCommand.register(this.dispatcher, context); // Folia - region threading - TODO later
+-        //TeamMsgCommand.register(this.dispatcher); // Folia - region threading - TODO later
++        TagCommand.register(this.dispatcher); // Folia - vanilla commands
++        TeamCommand.register(this.dispatcher, context); // Folia - vanilla commands
++        TeamMsgCommand.register(this.dispatcher); // Folia - vanilla commands
+         TeleportCommand.register(this.dispatcher);
+         TellRawCommand.register(this.dispatcher, context);
+         //TestCommand.register(this.dispatcher, context); // Folia - region threading
+         //TickCommand.register(this.dispatcher); // Folia - region threading - TODO later
+         TimeCommand.register(this.dispatcher);
+         TitleCommand.register(this.dispatcher, context);
+-        //TriggerCommand.register(this.dispatcher); // Folia - region threading - TODO later
+-        //WaypointCommand.register(this.dispatcher, context); // Folia - region threading - TODO later
++        TriggerCommand.register(this.dispatcher); // Folia - vanilla commands
++        WaypointCommand.register(this.dispatcher, context); // Folia - vanilla commands
+         WeatherCommand.register(this.dispatcher);
+         WorldBorderCommand.register(this.dispatcher);
+         if (JvmProfiler.INSTANCE.isAvailable()) {
+diff --git a/net/minecraft/server/bossevents/CustomBossEvent.java b/net/minecraft/server/bossevents/CustomBossEvent.java
+index 877b90eaaf5574a43e2a4f6aa9027e5126f49491..ffb4a2326f845325ac9cb537948e8fa84098e6f6 100644
+--- a/net/minecraft/server/bossevents/CustomBossEvent.java
++++ b/net/minecraft/server/bossevents/CustomBossEvent.java
+@@ -20,7 +20,7 @@ import net.minecraft.world.BossEvent;
+ public class CustomBossEvent extends ServerBossEvent {
+     private static final int DEFAULT_MAX = 100;
+     private final ResourceLocation id;
+-    private final Set<UUID> players = Sets.newHashSet();
++    private final Set<UUID> players = Sets.newConcurrentHashSet(); // Folia - vanilla commands
+     private int value;
+     private int max = 100;
+     // CraftBukkit start
+diff --git a/net/minecraft/server/bossevents/CustomBossEvents.java b/net/minecraft/server/bossevents/CustomBossEvents.java
+index 5f1729423b9d0f2ff38b9628689fd4da93eeca34..2ab20b7cff517ed62fa63f44e7658c47e2bcba65 100644
+--- a/net/minecraft/server/bossevents/CustomBossEvents.java
++++ b/net/minecraft/server/bossevents/CustomBossEvents.java
+@@ -20,7 +20,7 @@ public class CustomBossEvents {
+     private static final Codec<Map<ResourceLocation, CustomBossEvent.Packed>> EVENTS_CODEC = Codec.unboundedMap(
+         ResourceLocation.CODEC, CustomBossEvent.Packed.CODEC
+     );
+-    private final Map<ResourceLocation, CustomBossEvent> events = Maps.newHashMap();
++    private final Map<ResourceLocation, CustomBossEvent> events = Maps.newConcurrentMap(); // Folia - vanilla commands
+ 
+     @Nullable
+     public CustomBossEvent get(ResourceLocation id) {
+diff --git a/net/minecraft/server/commands/CloneCommands.java b/net/minecraft/server/commands/CloneCommands.java
+index b2d5f2e9a4e627a007b173d422b4aada0ca39495..c57fe5e708f1eb161dcfb5014209022fa13f05ff 100644
+--- a/net/minecraft/server/commands/CloneCommands.java
++++ b/net/minecraft/server/commands/CloneCommands.java
+@@ -227,7 +227,7 @@ public class CloneCommands {
+             int _int = source.getLevel().getGameRules().getInt(GameRules.RULE_COMMAND_MODIFICATION_BLOCK_LIMIT);
+             if (i > _int) {
+                 throw ERROR_AREA_TOO_LARGE.create(_int, i);
+-            } else if (!serverLevel.hasChunksAt(blockPos, blockPos1) || !serverLevel1.hasChunksAt(blockPos2, blockPos3)) {
++            } else if (!serverLevel.hasAndOwnsChunksAt(blockPos.getX(), blockPos.getZ(), blockPos1.getX(), blockPos1.getZ()) || !serverLevel1.hasAndOwnsChunksAt(blockPos2.getX(), blockPos2.getZ(), blockPos3.getX(), blockPos3.getZ())) { // Folia - vanilla commands
+                 throw BlockPosArgument.ERROR_NOT_LOADED.create();
+             } else if (serverLevel1.isDebug()) {
+                 throw ERROR_FAILED.create();
+diff --git a/net/minecraft/server/commands/DialogCommand.java b/net/minecraft/server/commands/DialogCommand.java
+index dc416bd06adfef055195e9f1269e80a78ea5d922..2d5fc4e7358632c4eb011bdfb969d3ae1e2611d6 100644
+--- a/net/minecraft/server/commands/DialogCommand.java
++++ b/net/minecraft/server/commands/DialogCommand.java
+@@ -12,6 +12,7 @@ import net.minecraft.network.chat.Component;
+ import net.minecraft.network.protocol.common.ClientboundClearDialogPacket;
+ import net.minecraft.server.dialog.Dialog;
+ import net.minecraft.server.level.ServerPlayer;
++import net.minecraft.world.entity.Entity;
+ 
+ public class DialogCommand {
+     public static void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext buildContext) {
+@@ -46,7 +47,11 @@ public class DialogCommand {
+ 
+     private static int showDialog(CommandSourceStack source, Collection<ServerPlayer> targets, Holder<Dialog> dialog) {
+         for (ServerPlayer serverPlayer : targets) {
+-            serverPlayer.openDialog(dialog);
++            // Folia start - vanilla commands
++            serverPlayer.getBukkitEntity().taskScheduler.schedule((ServerPlayer nmsEntity) -> {
++                nmsEntity.openDialog(dialog);
++            }, null, 1L);
++            // Folia end - vanilla commands
+         }
+ 
+         if (targets.size() == 1) {
+@@ -60,7 +65,11 @@ public class DialogCommand {
+ 
+     private static int clearDialog(CommandSourceStack source, Collection<ServerPlayer> targets) {
+         for (ServerPlayer serverPlayer : targets) {
+-            serverPlayer.connection.send(ClientboundClearDialogPacket.INSTANCE);
++            // Folia start - vanilla commands
++            serverPlayer.getBukkitEntity().taskScheduler.schedule((ServerPlayer nmsEntity) -> {
++                serverPlayer.connection.send(ClientboundClearDialogPacket.INSTANCE);
++            }, null, 1L);
++            // Folia end - vanilla commands
+         }
+ 
+         if (targets.size() == 1) {
+diff --git a/net/minecraft/server/commands/ItemCommands.java b/net/minecraft/server/commands/ItemCommands.java
+index b9a22d74e35f69c317525066f53d302aaa53da33..73b5ece1a05ee17303df84ed70c3619ee7530b11 100644
+--- a/net/minecraft/server/commands/ItemCommands.java
++++ b/net/minecraft/server/commands/ItemCommands.java
+@@ -1,5 +1,6 @@
+ package net.minecraft.server.commands;
+ 
++import ca.spottedleaf.concurrentutil.executor.PrioritisedExecutor;
+ import com.google.common.collect.Lists;
+ import com.google.common.collect.Maps;
+ import com.mojang.brigadier.CommandDispatcher;
+@@ -313,33 +314,52 @@ public class ItemCommands {
+     }
+ 
+     private static int modifyBlockItem(CommandSourceStack source, BlockPos pos, int slot, Holder<LootItemFunction> modifier) throws CommandSyntaxException {
+-        Container container = getContainer(source, pos, ERROR_TARGET_NOT_A_CONTAINER);
+-        if (slot >= 0 && slot < container.getContainerSize()) {
+-            ItemStack itemStack = applyModifier(source, modifier, container.getItem(slot));
+-            container.setItem(slot, itemStack);
+-            source.sendSuccess(
+-                () -> Component.translatable("commands.item.block.set.success", pos.getX(), pos.getY(), pos.getZ(), itemStack.getDisplayName()), true
+-            );
+-            return 1;
+-        } else {
+-            throw ERROR_TARGET_INAPPLICABLE_SLOT.create(slot);
+-        }
++        // Folia start - vanilla commands
++        io.papermc.paper.threadedregions.RegionizedServer.getInstance().taskQueue.queueChunkTask(
++                source.getLevel(), pos.getX() << 4, pos.getZ() << 4, () -> {
++                    try {
++                        Container container = getContainer(source, pos, ERROR_TARGET_NOT_A_CONTAINER);
++                        if (slot >= 0 && slot < container.getContainerSize()) {
++                            ItemStack itemStack = applyModifier(source, modifier, container.getItem(slot));
++                            container.setItem(slot, itemStack);
++                            source.sendSuccess(
++                                    () -> Component.translatable("commands.item.block.set.success", pos.getX(), pos.getY(), pos.getZ(), itemStack.getDisplayName()), true
++                            );
++                            //return 1;
++                        } else {
++                            throw ERROR_TARGET_INAPPLICABLE_SLOT.create(slot);
++                        }
++                    } catch (Exception e) {
++                        source.sendFailure(
++                                Component.literal(e.getMessage())
++                        );
++                    }
++                }
++        );
++        return 1;
++        // Folia end - vanilla commands
+     }
+ 
+     private static int modifyEntityItem(CommandSourceStack source, Collection<? extends Entity> targets, int sourceSlot, Holder<LootItemFunction> modifer) throws CommandSyntaxException {
+         Map<Entity, ItemStack> map = Maps.newHashMapWithExpectedSize(targets.size());
+ 
+         for (Entity entity : targets) {
+-            SlotAccess slot = entity.getSlot(sourceSlot);
+-            if (slot != SlotAccess.NULL) {
+-                ItemStack itemStack = applyModifier(source, modifer, slot.get().copy());
+-                if (slot.set(itemStack)) {
+-                    map.put(entity, itemStack);
+-                    if (entity instanceof ServerPlayer) {
+-                        ((ServerPlayer)entity).containerMenu.broadcastChanges();
++            // Folia start - vanilla commands
++            if (entity.getBukkitEntity().taskScheduler.schedule((Entity e) -> {
++                SlotAccess slot = e.getSlot(sourceSlot);
++                if (slot != SlotAccess.NULL) {
++                    ItemStack itemStack = applyModifier(source, modifer, slot.get().copy());
++                    if (slot.set(itemStack)) {
++                        //map.put(e, itemStack);
++                        if (e instanceof ServerPlayer) {
++                            ((ServerPlayer)e).containerMenu.broadcastChanges();
++                        }
+                     }
+                 }
++            }, null, 0)) {
++                map.put(entity, null);
+             }
++            // Folia end - vanilla commands
+         }
+ 
+         if (map.isEmpty()) {
+@@ -348,7 +368,7 @@ public class ItemCommands {
+             if (map.size() == 1) {
+                 Entry<Entity, ItemStack> entry = map.entrySet().iterator().next();
+                 source.sendSuccess(
+-                    () -> Component.translatable("commands.item.entity.set.success.single", entry.getKey().getDisplayName(), entry.getValue().getDisplayName()),
++                    () -> Component.translatable("commands.item.entity.set.success.single", entry.getKey().getDisplayName(), "UNKNOWN"), // Folia - vanilla commands
+                     true
+                 );
+             } else {
+@@ -360,14 +380,27 @@ public class ItemCommands {
+     }
+ 
+     private static int setBlockItem(CommandSourceStack source, BlockPos pos, int slot, ItemStack item) throws CommandSyntaxException {
+-        Container container = getContainer(source, pos, ERROR_TARGET_NOT_A_CONTAINER);
+-        if (slot >= 0 && slot < container.getContainerSize()) {
+-            container.setItem(slot, item);
+-            source.sendSuccess(() -> Component.translatable("commands.item.block.set.success", pos.getX(), pos.getY(), pos.getZ(), item.getDisplayName()), true);
+-            return 1;
+-        } else {
+-            throw ERROR_TARGET_INAPPLICABLE_SLOT.create(slot);
+-        }
++        // Folia start - vanilla commands
++        io.papermc.paper.threadedregions.RegionizedServer.getInstance().taskQueue.queueChunkTask(
++                source.getLevel(), pos.getX() << 4, pos.getZ() << 4, () -> {
++                    try {
++                        Container container = getContainer(source, pos, ERROR_TARGET_NOT_A_CONTAINER);
++                        if (slot >= 0 && slot < container.getContainerSize()) {
++                            container.setItem(slot, item);
++                            source.sendSuccess(() -> Component.translatable("commands.item.block.set.success", pos.getX(), pos.getY(), pos.getZ(), item.getDisplayName()), true);
++                            //return 1;
++                        } else {
++                            throw ERROR_TARGET_INAPPLICABLE_SLOT.create(slot);
++                        }
++                    } catch (Exception e) {
++                        source.sendFailure(
++                                Component.literal(e.getMessage())
++                        );
++                    }
++                }
++        );
++        // Folia end - vanilla commands
++        return 1;
+     }
+ 
+     static Container getContainer(CommandSourceStack source, BlockPos pos, Dynamic3CommandExceptionType exception) throws CommandSyntaxException {
+@@ -383,13 +416,19 @@ public class ItemCommands {
+         List<Entity> list = Lists.newArrayListWithCapacity(targets.size());
+ 
+         for (Entity entity : targets) {
+-            SlotAccess slot1 = entity.getSlot(slot);
+-            if (slot1 != SlotAccess.NULL && slot1.set(item.copy())) {
+-                list.add(entity);
+-                if (entity instanceof ServerPlayer) {
+-                    ((ServerPlayer)entity).containerMenu.broadcastChanges();
++            // Folia start - vanilla commands
++            if (entity.getBukkitEntity().taskScheduler.schedule((Entity e) -> {
++                SlotAccess slot1 = e.getSlot(slot);
++                if (slot1 != SlotAccess.NULL && slot1.set(item.copy())) {
++                    //list.add(e);
++                    if (e instanceof ServerPlayer) {
++                        ((ServerPlayer) e).containerMenu.broadcastChanges();
++                    }
+                 }
++            }, null, 0)) {
++                list.add(entity);
+             }
++            // Folia end - vanilla commands
+         }
+ 
+         if (list.isEmpty()) {
+diff --git a/net/minecraft/server/commands/RideCommand.java b/net/minecraft/server/commands/RideCommand.java
+index 26cca2dded47d8ba55b6f797c9676c6fe03c7a42..c9c70df8377a58fadf0abcc9e0d88ddcaa8e1f0f 100644
+--- a/net/minecraft/server/commands/RideCommand.java
++++ b/net/minecraft/server/commands/RideCommand.java
+@@ -57,31 +57,41 @@ public class RideCommand {
+     }
+ 
+     private static int mount(CommandSourceStack source, Entity target, Entity vehicle) throws CommandSyntaxException {
+-        Entity vehicle1 = target.getVehicle();
++        // Folia start - vanilla commands
++        target.getBukkitEntity().taskScheduler.schedule((Entity nmsEntity) -> {
++        Entity vehicle1 = nmsEntity.getVehicle();
+         if (vehicle1 != null) {
+-            throw ERROR_ALREADY_RIDING.create(target.getDisplayName(), vehicle1.getDisplayName());
++            source.sendFailure(Component.literal(ERROR_ALREADY_RIDING.create(nmsEntity.getDisplayName(), vehicle1.getDisplayName()).getMessage()));
+         } else if (vehicle.getType() == EntityType.PLAYER && !io.papermc.paper.configuration.GlobalConfiguration.get().commands.rideCommandAllowPlayerAsVehicle) { // Paper - allow player as vehicle
+-            throw ERROR_MOUNTING_PLAYER.create();
+-        } else if (target.getSelfAndPassengers().anyMatch(entity -> entity == vehicle)) {
+-            throw ERROR_MOUNTING_LOOP.create();
+-        } else if (target.level() != vehicle.level()) {
+-            throw ERROR_WRONG_DIMENSION.create();
+-        } else if (!target.startRiding(vehicle, true)) {
+-            throw ERROR_MOUNT_FAILED.create(target.getDisplayName(), vehicle.getDisplayName());
++            source.sendFailure(Component.literal( ERROR_MOUNTING_PLAYER.create().getMessage()));
++        } else if (nmsEntity.getSelfAndPassengers().anyMatch(entity -> entity == vehicle)) {
++            source.sendFailure(Component.literal( ERROR_MOUNTING_LOOP.create().getMessage()));
++        } else if (nmsEntity.level() != vehicle.level()) {
++            source.sendFailure(Component.literal( ERROR_WRONG_DIMENSION.create().getMessage()));
++        } else if (!nmsEntity.startRiding(vehicle, true)) {
++            source.sendFailure(Component.literal( ERROR_MOUNT_FAILED.create(nmsEntity.getDisplayName(), vehicle.getDisplayName()).getMessage()));
+         } else {
+-            source.sendSuccess(() -> Component.translatable("commands.ride.mount.success", target.getDisplayName(), vehicle.getDisplayName()), true);
+-            return 1;
+-        }
++            source.sendSuccess(() -> Component.translatable("commands.ride.mount.success", nmsEntity.getDisplayName(), vehicle.getDisplayName()), true);
++            //return 1;
++        }}, null, 1L);
++        return 1;
++        // Folia end - vanilla commands
+     }
+ 
+     private static int dismount(CommandSourceStack source, Entity target) throws CommandSyntaxException {
+-        Entity vehicle = target.getVehicle();
+-        if (vehicle == null) {
+-            throw ERROR_NOT_RIDING.create(target.getDisplayName());
+-        } else {
+-            target.stopRiding();
+-            source.sendSuccess(() -> Component.translatable("commands.ride.dismount.success", target.getDisplayName(), vehicle.getDisplayName()), true);
+-            return 1;
+-        }
++        // Folia start - vanilla commands
++        target.getBukkitEntity().taskScheduler.schedule((Entity nmsEntity) -> {
++            Entity vehicle = nmsEntity.getVehicle();
++            if (vehicle == null) {
++                //throw ERROR_NOT_RIDING.create(target.getDisplayName());
++                source.sendFailure(Component.literal(ERROR_NOT_RIDING.create(nmsEntity.getDisplayName()).getMessage()));
++            } else {
++                nmsEntity.stopRiding();
++                source.sendSuccess(() -> Component.translatable("commands.ride.dismount.success", nmsEntity.getDisplayName(), vehicle.getDisplayName()), true);
++                //return 1;
++            }
++        }, null, 1L);
++        // Folia end - vanilla commands
++        return 1;
+     }
+ }
+diff --git a/net/minecraft/server/commands/RotateCommand.java b/net/minecraft/server/commands/RotateCommand.java
+index 3c31a190687237bb3f45c30d8677e1c00dc8ed04..bd9ed8959cd1bff971529fcd8549cfc1e0c92d1d 100644
+--- a/net/minecraft/server/commands/RotateCommand.java
++++ b/net/minecraft/server/commands/RotateCommand.java
+@@ -74,14 +74,22 @@ public class RotateCommand {
+ 
+     private static int rotate(CommandSourceStack source, Entity entity, Coordinates coordinates) {
+         Vec2 rotation = coordinates.getRotation(source);
+-        entity.forceSetRotation(rotation.y, rotation.x);
+-        source.sendSuccess(() -> Component.translatable("commands.rotate.success", entity.getDisplayName()), true);
++        // Folia start - vanilla commands
++        entity.getBukkitEntity().taskScheduler.schedule((Entity nmsEntity) -> {
++            nmsEntity.forceSetRotation(rotation.y, rotation.x);
++            source.sendSuccess(() -> Component.translatable("commands.rotate.success", nmsEntity.getDisplayName()), true);
++        }, null, 1L);
++        // Folia end - vanilla commands
+         return 1;
+     }
+ 
+     private static int rotate(CommandSourceStack source, Entity entity, LookAt lookAt) {
+-        lookAt.perform(source, entity);
+-        source.sendSuccess(() -> Component.translatable("commands.rotate.success", entity.getDisplayName()), true);
++        // Folia start - vanilla commands
++        entity.getBukkitEntity().taskScheduler.schedule((Entity nmsEntity) -> {
++            lookAt.perform(source, nmsEntity);
++            source.sendSuccess(() -> Component.translatable("commands.rotate.success", nmsEntity.getDisplayName()), true);
++        }, null, 1L);
++        // Folia end - vanilla commands
+         return 1;
+     }
+ }
+diff --git a/net/minecraft/server/commands/SpreadPlayersCommand.java b/net/minecraft/server/commands/SpreadPlayersCommand.java
+index 92a820d48057ffe2ef35919341b6cdf605ca939e..1e46d6fadd6ce98e5cf191a5d355164ed0fcf127 100644
+--- a/net/minecraft/server/commands/SpreadPlayersCommand.java
++++ b/net/minecraft/server/commands/SpreadPlayersCommand.java
+@@ -29,6 +29,7 @@ import net.minecraft.world.entity.player.Player;
+ import net.minecraft.world.level.BlockGetter;
+ import net.minecraft.world.level.block.state.BlockState;
+ import net.minecraft.world.phys.Vec2;
++import net.minecraft.world.phys.Vec3;
+ import net.minecraft.world.scores.Team;
+ 
+ public class SpreadPlayersCommand {
+@@ -246,7 +247,23 @@ public class SpreadPlayersCommand {
+                 position = positions[i++];
+             }
+ 
+-            entity.teleportTo(
++            // Folia start - vanilla commands
++            final ServerLevel worldFinal = level;
++            Vec3 posFinal = new Vec3(Mth.floor(position.x) + 0.5,
++                    position.getSpawnY(level, maxHeight),
++                    Mth.floor(position.z) + 0.5);
++            Float yawFinal = entity.getYRot();
++            Float pitchFinal = entity.getXRot();
++            entity.getBukkitEntity().taskScheduler.schedule((Entity nmsEntity) -> {
++                nmsEntity.unRide();
++                nmsEntity.teleportAsync(
++                        worldFinal, posFinal, yawFinal, pitchFinal, Vec3.ZERO,
++                        org.bukkit.event.player.PlayerTeleportEvent.TeleportCause.COMMAND,
++                        Entity.TELEPORT_FLAG_LOAD_CHUNK,
++                        null
++                );
++            }, null, 1L);
++            /*entity.teleportTo(
+                 level,
+                 Mth.floor(position.x) + 0.5,
+                 position.getSpawnY(level, maxHeight),
+@@ -256,7 +273,8 @@ public class SpreadPlayersCommand {
+                 entity.getXRot(),
+                 true
+                 , org.bukkit.event.player.PlayerTeleportEvent.TeleportCause.COMMAND // CraftBukkit - handle teleport reason
+-            );
++            );*/
++            // Folia end - vanilla commands
+             double d1 = Double.MAX_VALUE;
+ 
+             for (SpreadPlayersCommand.Position position1 : positions) {
+@@ -351,9 +369,12 @@ public class SpreadPlayersCommand {
+         }
+ 
+         public boolean isSafe(BlockGetter level, int y) {
+-            BlockPos blockPos = BlockPos.containing(this.x, this.getSpawnY(level, y) - 1, this.z);
++            // Folia start - vanilla commands
++            /*BlockPos blockPos = BlockPos.containing(this.x, this.getSpawnY(level, y) - 1, this.z);
+             BlockState blockState = level.getBlockState(blockPos);
+-            return blockPos.getY() < y && !blockState.liquid() && !blockState.is(BlockTags.FIRE);
++            return blockPos.getY() < y && !blockState.liquid() && !blockState.is(BlockTags.FIRE);*/
++            return true;
++            // Folia end - vanilla commands
+         }
+ 
+         public void randomize(RandomSource random, double minX, double minZ, double maxX, double maxZ) {
+diff --git a/net/minecraft/server/commands/TagCommand.java b/net/minecraft/server/commands/TagCommand.java
+index c58ed8cb0ba4bb3db9777f000402c7bb0cd7bed1..6a9411115060bea37c53440aa210ad4cf5f120d1 100644
+--- a/net/minecraft/server/commands/TagCommand.java
++++ b/net/minecraft/server/commands/TagCommand.java
+@@ -75,9 +75,12 @@ public class TagCommand {
+         int i = 0;
+ 
+         for (Entity entity : entities) {
+-            if (entity.addTag(tagName)) {
+-                i++;
+-            }
++            // Folia start - vanilla commands
++            boolean done = entity.getBukkitEntity().taskScheduler.schedule((Entity nmsEntity) -> {
++                nmsEntity.addTag(tagName);
++            }, null, 1L);
++            if (done) i++;
++            // Folia end - vanilla commands
+         }
+ 
+         if (i == 0) {
+@@ -97,9 +100,12 @@ public class TagCommand {
+         int i = 0;
+ 
+         for (Entity entity : entities) {
+-            if (entity.removeTag(tagName)) {
+-                i++;
+-            }
++            // Folia start - vanilla commands
++            boolean done = entity.getBukkitEntity().taskScheduler.schedule((Entity nmsEntity) -> {
++                nmsEntity.removeTag(tagName);
++            }, null, 1L);
++            if (done) i++;
++            // Folia end - vanilla commands
+         }
+ 
+         if (i == 0) {
+diff --git a/net/minecraft/server/level/ServerBossEvent.java b/net/minecraft/server/level/ServerBossEvent.java
+index f106373ef3ac4a8685c2939c9e8361688a285913..f0b7e928928fdb98c88c7ccd1616fcb297c1b45a 100644
+--- a/net/minecraft/server/level/ServerBossEvent.java
++++ b/net/minecraft/server/level/ServerBossEvent.java
+@@ -13,7 +13,7 @@ import net.minecraft.util.Mth;
+ import net.minecraft.world.BossEvent;
+ 
+ public class ServerBossEvent extends BossEvent {
+-    private final Set<ServerPlayer> players = Sets.newHashSet();
++    private final Set<ServerPlayer> players = Sets.newConcurrentHashSet(); // Folia - vanilla commands
+     private final Set<ServerPlayer> unmodifiablePlayers = Collections.unmodifiableSet(this.players);
+     public boolean visible = true;
+ 
+diff --git a/net/minecraft/server/waypoints/ServerWaypointManager.java b/net/minecraft/server/waypoints/ServerWaypointManager.java
+index 0f8cacbb8fe55a60e2f0c98bf36c005b29f41a4b..49af987b03053d3e1cd50b9357d1eca18ed17b81 100644
+--- a/net/minecraft/server/waypoints/ServerWaypointManager.java
++++ b/net/minecraft/server/waypoints/ServerWaypointManager.java
+@@ -10,14 +10,15 @@ import java.util.HashSet;
+ import java.util.Map;
+ import java.util.Set;
+ import java.util.Map.Entry;
++
+ import net.minecraft.server.level.ServerPlayer;
+ import net.minecraft.world.level.GameRules;
+ import net.minecraft.world.waypoints.WaypointManager;
+ import net.minecraft.world.waypoints.WaypointTransmitter;
+ 
+ public class ServerWaypointManager implements WaypointManager<WaypointTransmitter> {
+-    private final Set<WaypointTransmitter> waypoints = new HashSet<>();
+-    private final Set<ServerPlayer> players = new HashSet<>();
++    private final Set<WaypointTransmitter> waypoints = Sets.newConcurrentHashSet(); // Folia - vanilla commands
++    private final Set<ServerPlayer> players = Sets.newConcurrentHashSet(); // Folia - vanilla commands
+     private final Table<ServerPlayer, WaypointTransmitter, WaypointTransmitter.Connection> connections = HashBasedTable.create();
+ 
+     @Override
+diff --git a/net/minecraft/world/level/LevelReader.java b/net/minecraft/world/level/LevelReader.java
+index 3f4a675f5da2947fd59fe9206fb32197a745e90f..1df45f980fcb9f68bdc9c6827b1c363bf3ee84b0 100644
+--- a/net/minecraft/world/level/LevelReader.java
++++ b/net/minecraft/world/level/LevelReader.java
+@@ -217,7 +217,7 @@ public interface LevelReader extends ca.spottedleaf.moonrise.patches.chunk_syste
+ 
+         for(int m = i; m <= j; ++m) {
+             for(int n = k; n <= l; ++n) {
+-                if (!this.hasChunk(m, n) || (this instanceof net.minecraft.server.level.ServerLevel world && !ca.spottedleaf.moonrise.common.util.TickThread.isTickThreadFor(world, m, n))) {
++                if ((this instanceof net.minecraft.server.level.ServerLevel world && !ca.spottedleaf.moonrise.common.util.TickThread.isTickThreadFor(world, m, n)) || !this.hasChunk(m, n)) {
+                     return false;
+                 }
+             }
+diff --git a/net/minecraft/world/scores/PlayerScores.java b/net/minecraft/world/scores/PlayerScores.java
+index 10793a4e9a494731a0f3278a8485599f69f691c8..d89ccf779c96cd022d97dfebf59eb556570c7d20 100644
+--- a/net/minecraft/world/scores/PlayerScores.java
++++ b/net/minecraft/world/scores/PlayerScores.java
+@@ -12,11 +12,11 @@ class PlayerScores {
+     private final Reference2ObjectOpenHashMap<Objective, Score> scores = new Reference2ObjectOpenHashMap<>(16, 0.5F);
+ 
+     @Nullable
+-    public Score get(Objective objective) {
++    public synchronized Score get(Objective objective) { // Folia - vanilla commands
+         return this.scores.get(objective);
+     }
+ 
+-    public Score getOrCreate(Objective objective, Consumer<Score> creator) {
++    public synchronized Score getOrCreate(Objective objective, Consumer<Score> creator) { // Folia - vanilla commands
+         return this.scores.computeIfAbsent(objective, object -> {
+             Score score = new Score();
+             creator.accept(score);
+@@ -24,25 +24,25 @@ class PlayerScores {
+         });
+     }
+ 
+-    public boolean remove(Objective objective) {
++    public synchronized boolean remove(Objective objective) { // Folia - vanilla commands
+         return this.scores.remove(objective) != null;
+     }
+ 
+-    public boolean hasScores() {
++    public synchronized boolean hasScores() {
+         return !this.scores.isEmpty();
+-    }
++    } // Folia - vanilla commands
+ 
+-    public Object2IntMap<Objective> listScores() {
++    public synchronized Object2IntMap<Objective> listScores() { // Folia - vanilla commands
+         Object2IntMap<Objective> map = new Object2IntOpenHashMap<>();
+         this.scores.forEach((objective, score) -> map.put(objective, score.value()));
+         return map;
+     }
+ 
+-    void setScore(Objective objective, Score score) {
++    synchronized void setScore(Objective objective, Score score) { // Folia - vanilla commands
+         this.scores.put(objective, score);
+     }
+ 
+-    Map<Objective, Score> listRawScores() {
++    synchronized Map<Objective, Score> listRawScores() { // Folia - vanilla commands
+         return Collections.unmodifiableMap(this.scores);
+     }
+ }
+diff --git a/net/minecraft/world/scores/PlayerTeam.java b/net/minecraft/world/scores/PlayerTeam.java
+index 4398151f8daff7617111cf5361e9df4111d4aca4..f86e77b4d389e11b62effd47d9cd201d8a9eb734 100644
+--- a/net/minecraft/world/scores/PlayerTeam.java
++++ b/net/minecraft/world/scores/PlayerTeam.java
+@@ -22,7 +22,7 @@ public class PlayerTeam extends Team {
+     private static final int BIT_SEE_INVISIBLES = 1;
+     private final Scoreboard scoreboard;
+     private final String name;
+-    private final Set<String> players = Sets.newHashSet();
++    private final Set<String> players = Sets.newConcurrentHashSet(); // Folia - vanilla commands
+     private Component displayName;
+     private Component playerPrefix = CommonComponents.EMPTY;
+     private Component playerSuffix = CommonComponents.EMPTY;
+diff --git a/net/minecraft/world/scores/Scoreboard.java b/net/minecraft/world/scores/Scoreboard.java
+index 4275d048a8f5e98c7436f5bf2d55a9b68f7ba818..bb89634c0a8886a5d30651d0561740ce24f3c9b7 100644
+--- a/net/minecraft/world/scores/Scoreboard.java
++++ b/net/minecraft/world/scores/Scoreboard.java
+@@ -4,12 +4,8 @@ import com.google.common.collect.Lists;
+ import com.mojang.logging.LogUtils;
+ import com.mojang.serialization.Codec;
+ import com.mojang.serialization.codecs.RecordCodecBuilder;
+-import it.unimi.dsi.fastutil.objects.Object2IntMap;
+-import it.unimi.dsi.fastutil.objects.Object2IntMaps;
+-import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
+-import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+-import it.unimi.dsi.fastutil.objects.Reference2ObjectMap;
+-import it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap;
++import it.unimi.dsi.fastutil.objects.*;
++
+ import java.util.ArrayList;
+ import java.util.Collection;
+ import java.util.Collections;
+@@ -21,6 +17,7 @@ import java.util.function.Consumer;
+ import javax.annotation.Nullable;
+ import net.minecraft.network.chat.Component;
+ import net.minecraft.network.chat.numbers.NumberFormat;
++import net.minecraft.server.level.ServerLevel;
+ import net.minecraft.world.entity.Entity;
+ import net.minecraft.world.entity.player.Player;
+ import net.minecraft.world.scores.criteria.ObjectiveCriteria;
+@@ -30,12 +27,14 @@ import org.slf4j.Logger;
+ public class Scoreboard {
+     public static final String HIDDEN_SCORE_PREFIX = "#";
+     private static final Logger LOGGER = LogUtils.getLogger();
+-    private final Object2ObjectMap<String, Objective> objectivesByName = new Object2ObjectOpenHashMap<>(16, 0.5F);
+-    private final Reference2ObjectMap<ObjectiveCriteria, List<Objective>> objectivesByCriteria = new Reference2ObjectOpenHashMap<>();
+-    private final Map<String, PlayerScores> playerScores = new Object2ObjectOpenHashMap<>(16, 0.5F);
++    // Folia start - vanilla commands
++    private final Object2ObjectMap<String, Objective> objectivesByName = Object2ObjectMaps.synchronize(new Object2ObjectOpenHashMap<>(16, 0.5F));
++    private final Reference2ObjectMap<ObjectiveCriteria, List<Objective>> objectivesByCriteria = Reference2ObjectMaps.synchronize(new Reference2ObjectOpenHashMap<>());
++    private final Map<String, PlayerScores> playerScores = Object2ObjectMaps.synchronize(new Object2ObjectOpenHashMap<>(16, 0.5F));
+     private final Map<DisplaySlot, Objective> displayObjectives = new EnumMap<>(DisplaySlot.class);
+-    private final Object2ObjectMap<String, PlayerTeam> teamsByName = new Object2ObjectOpenHashMap<>();
+-    private final Object2ObjectMap<String, PlayerTeam> teamsByPlayer = new Object2ObjectOpenHashMap<>();
++    private final Object2ObjectMap<String, PlayerTeam> teamsByName = Object2ObjectMaps.synchronize(new Object2ObjectOpenHashMap<>());
++    private final Object2ObjectMap<String, PlayerTeam> teamsByPlayer = Object2ObjectMaps.synchronize(new Object2ObjectOpenHashMap<>());
++    // Folia end - vanilla commands
+ 
+     @Nullable
+     public Objective getObjective(@Nullable String name) {
+@@ -62,9 +61,15 @@ public class Scoreboard {
+     }
+ 
+     public final void forAllObjectives(ObjectiveCriteria criteria, ScoreHolder scoreHolder, Consumer<ScoreAccess> action) {
+-        this.objectivesByCriteria
+-            .getOrDefault(criteria, Collections.emptyList())
+-            .forEach(objective -> action.accept(this.getOrCreatePlayerScore(scoreHolder, objective, true)));
++        // Folia start - vanilla commands
++        io.papermc.paper.threadedregions.RegionizedServer.getInstance().addTask(() -> {
++            synchronized (this.objectivesByCriteria) {
++                this.objectivesByCriteria
++                        .getOrDefault(criteria, Collections.emptyList())
++                        .forEach(objective -> action.accept(this.getOrCreatePlayerScore(scoreHolder, objective, true)));
++            }
++        });
++        // Folia end - vanilla commands
+     }
+ 
+     private PlayerScores getOrCreatePlayerInfo(String username) {
+@@ -170,25 +175,29 @@ public class Scoreboard {
+ 
+     public Collection<PlayerScoreEntry> listPlayerScores(Objective objective) {
+         List<PlayerScoreEntry> list = new ArrayList<>();
+-        this.playerScores.forEach((string, playerScores) -> {
+-            Score score = playerScores.get(objective);
+-            if (score != null) {
+-                list.add(new PlayerScoreEntry(string, score.value(), score.display(), score.numberFormat()));
+-            }
+-        });
++        synchronized (this.playerScores) { // Folia - vanilla commands
++            this.playerScores.forEach((string, playerScores) -> {
++                Score score = playerScores.get(objective);
++                if (score != null) {
++                    list.add(new PlayerScoreEntry(string, score.value(), score.display(), score.numberFormat()));
++                }
++            });
++        } // Folia - vanilla commands
+         return list;
+     }
+ 
+     public Collection<Objective> getObjectives() {
+-        return this.objectivesByName.values();
++        return new ArrayList<>(this.objectivesByName.values()); // Folia - vanilla commands
+     }
+ 
+     public Collection<String> getObjectiveNames() {
+-        return this.objectivesByName.keySet();
++        return new ArrayList<>(this.objectivesByName.keySet()); // Folia - vanilla commands
+     }
+ 
+     public Collection<ScoreHolder> getTrackedPlayers() {
+-        return this.playerScores.keySet().stream().map(ScoreHolder::forNameOnly).toList();
++        synchronized (this.playerScores) {  // Folia - vanilla commands
++            return this.playerScores.keySet().stream().map(ScoreHolder::forNameOnly).toList();
++        } // Folia - vanilla commands
+     }
+ 
+     public void resetAllPlayerScores(ScoreHolder scoreHolder) {
+@@ -226,26 +235,37 @@ public class Scoreboard {
+                 this.setDisplayObjective(displaySlot, null);
+             }
+         }
+-
+-        List<Objective> list = this.objectivesByCriteria.get(objective.getCriteria());
+-        if (list != null) {
+-            list.remove(objective);
++        // Folia start - vanilla commands
++        synchronized (this.objectivesByCriteria) {
++            List<Objective> list = this.objectivesByCriteria.get(objective.getCriteria());
++            if (list != null) {
++                list.remove(objective);
++            }
+         }
+-
+-        for (PlayerScores playerScores : this.playerScores.values()) {
+-            playerScores.remove(objective);
++        synchronized (this.playerScores) {
++            for (PlayerScores playerScores : this.playerScores.values()) {
++                playerScores.remove(objective);
++            }
+         }
+-
++        // Folia end - vanilla commands
+         this.onObjectiveRemoved(objective);
+     }
+ 
+     public void setDisplayObjective(DisplaySlot slot, @Nullable Objective objective) {
+-        this.displayObjectives.put(slot, objective);
++        // Folia start - vanilla commands
++        synchronized (this.displayObjectives) {
++            this.displayObjectives.put(slot, objective);
++        }
++        // Folia end - vanilla commands
+     }
+ 
+     @Nullable
+     public Objective getDisplayObjective(DisplaySlot slot) {
+-        return this.displayObjectives.get(slot);
++        // Folia start - vanilla commands
++        synchronized (this.displayObjectives) {
++            return this.displayObjectives.get(slot);
++        }
++        // Folia end - vanilla commands
+     }
+ 
+     @Nullable
+@@ -305,11 +325,11 @@ public class Scoreboard {
+     }
+ 
+     public Collection<String> getTeamNames() {
+-        return this.teamsByName.keySet();
++        return new ArrayList<>(this.teamsByName.keySet()); // Folia - vanilla commands
+     }
+ 
+     public Collection<PlayerTeam> getPlayerTeams() {
+-        return this.teamsByName.values();
++        return new ArrayList<>(this.teamsByName.values()); // Folia - vanilla commands
+     }
+ 
+     @Nullable
+@@ -355,20 +375,22 @@ public class Scoreboard {
+     }
+ 
+     protected List<Scoreboard.PackedScore> packPlayerScores() {
+-        return this.playerScores
+-            .entrySet()
+-            .stream()
+-            .flatMap(
+-                entry -> {
+-                    String string = entry.getKey();
+-                    return entry.getValue()
+-                        .listRawScores()
+-                        .entrySet()
+-                        .stream()
+-                        .map(entry1 -> new Scoreboard.PackedScore(string, entry1.getKey().getName(), entry1.getValue()));
+-                }
+-            )
+-            .toList();
++        synchronized (this.playerScores) {
++            return this.playerScores
++                    .entrySet()
++                    .stream()
++                    .flatMap(
++                            entry -> {
++                                String string = entry.getKey();
++                                return entry.getValue()
++                                        .listRawScores()
++                                        .entrySet()
++                                        .stream()
++                                        .map(entry1 -> new Scoreboard.PackedScore(string, entry1.getKey().getName(), entry1.getValue()));
++                            }
++                    )
++                    .toList();
++        }
+     }
+ 
+     protected void loadPlayerScore(Scoreboard.PackedScore score) {

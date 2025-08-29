@@ -1,0 +1,575 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: root <root@iDeas20.localdomain>
+Date: Wed, 27 Aug 2025 22:20:54 +1000
+Subject: [PATCH] Vanilla commands reimplementation part 2
+
+
+diff --git a/net/minecraft/commands/Commands.java b/net/minecraft/commands/Commands.java
+index e80193333f2bc0290c52fd8b781e53bb617b4494..44930e398bef021dbc9a7e7d361093837aa18b41 100644
+--- a/net/minecraft/commands/Commands.java
++++ b/net/minecraft/commands/Commands.java
+@@ -189,8 +189,8 @@ public class Commands {
+         ClearInventoryCommands.register(this.dispatcher, context);
+         CloneCommands.register(this.dispatcher, context); // Folia - vanilla commands
+         DamageCommand.register(this.dispatcher, context);
+-        //DataCommands.register(this.dispatcher); // Folia - region threading - TODO
+-        //DataPackCommand.register(this.dispatcher, context); // Folia - region threading - TODO
++        DataCommands.register(this.dispatcher); // Folia - vanilla commands
++        DataPackCommand.register(this.dispatcher, context); // Folia - vanilla commands
+         //DebugCommand.register(this.dispatcher); // Folia - region threading - TODO
+         DefaultGameModeCommands.register(this.dispatcher);
+         DialogCommand.register(this.dispatcher, context); // Folia - vanilla commands
+@@ -202,7 +202,7 @@ public class Commands {
+         FillCommand.register(this.dispatcher, context);
+         FillBiomeCommand.register(this.dispatcher, context);
+         ForceLoadCommand.register(this.dispatcher);
+-        //FunctionCommand.register(this.dispatcher); // Folia - region threading - TODO
++        FunctionCommand.register(this.dispatcher); // Folia - vanilla commands
+         GameModeCommand.register(this.dispatcher);
+         GameRuleCommand.register(this.dispatcher, context);
+         GiveCommand.register(this.dispatcher, context);
+@@ -212,15 +212,15 @@ public class Commands {
+         KillCommand.register(this.dispatcher);
+         ListPlayersCommand.register(this.dispatcher);
+         LocateCommand.register(this.dispatcher, context);
+-        //LootCommand.register(this.dispatcher, context); // Folia - region threading - TODO later
++        LootCommand.register(this.dispatcher, context); // Folia - vanilla commands
+         MsgCommand.register(this.dispatcher);
+         ParticleCommand.register(this.dispatcher, context);
+         PlaceCommand.register(this.dispatcher);
+         PlaySoundCommand.register(this.dispatcher);
+         RandomCommand.register(this.dispatcher);
+-        //ReloadCommand.register(this.dispatcher); // Folia - region threading
++        ReloadCommand.register(this.dispatcher); // Folia - vanilla commands
+         RecipeCommand.register(this.dispatcher);
+-        //ReturnCommand.register(this.dispatcher); // Folia - region threading - TODO later
++        ReturnCommand.register(this.dispatcher); // Folia - vanilla commands
+         RideCommand.register(this.dispatcher); // Folia - vanilla commands
+         RotateCommand.register(this.dispatcher); // Folia - vanilla commands
+         SayCommand.register(this.dispatcher);
+@@ -231,7 +231,7 @@ public class Commands {
+         SetBlockCommand.register(this.dispatcher, context);
+         SetSpawnCommand.register(this.dispatcher);
+         SetWorldSpawnCommand.register(this.dispatcher);
+-        //SpectateCommand.register(this.dispatcher); // Folia - region threading - TODO later
++        SpectateCommand.register(this.dispatcher); // Folia - vanilla commands
+         SpreadPlayersCommand.register(this.dispatcher); // Folia - vanilla commands
+         StopSoundCommand.register(this.dispatcher);
+         SummonCommand.register(this.dispatcher, context);
+diff --git a/net/minecraft/commands/arguments/coordinates/BlockPosArgument.java b/net/minecraft/commands/arguments/coordinates/BlockPosArgument.java
+index db42958d560779fccfb3c8b48f0bc1ccc4023de3..f715774e2e6ea8bc8ebae193ff875eddb947e808 100644
+--- a/net/minecraft/commands/arguments/coordinates/BlockPosArgument.java
++++ b/net/minecraft/commands/arguments/coordinates/BlockPosArgument.java
+@@ -40,6 +40,10 @@ public class BlockPosArgument implements ArgumentType<Coordinates> {
+             throw ERROR_NOT_LOADED.create();
+         } else if (!level.isInWorldBounds(blockPos)) {
+             throw ERROR_OUT_OF_WORLD.create();
++            // Folia start - vanilla commands
++        } else if (!ca.spottedleaf.moonrise.common.util.TickThread.isTickThreadFor(context.getSource().getLevel(), blockPos.getX() >> 4, blockPos.getZ() >> 4)) {
++            throw ERROR_NOT_LOADED.create();
++            // Folia end - vanilla commands
+         } else {
+             return blockPos;
+         }
+diff --git a/net/minecraft/server/commands/ItemCommands.java b/net/minecraft/server/commands/ItemCommands.java
+index 73b5ece1a05ee17303df84ed70c3619ee7530b11..a5b8431679a5144a7c5758fe3ad4954968adea0a 100644
+--- a/net/minecraft/server/commands/ItemCommands.java
++++ b/net/minecraft/server/commands/ItemCommands.java
+@@ -316,7 +316,7 @@ public class ItemCommands {
+     private static int modifyBlockItem(CommandSourceStack source, BlockPos pos, int slot, Holder<LootItemFunction> modifier) throws CommandSyntaxException {
+         // Folia start - vanilla commands
+         io.papermc.paper.threadedregions.RegionizedServer.getInstance().taskQueue.queueChunkTask(
+-                source.getLevel(), pos.getX() << 4, pos.getZ() << 4, () -> {
++                source.getLevel(), pos.getX() >> 4, pos.getZ() >> 4, () -> {
+                     try {
+                         Container container = getContainer(source, pos, ERROR_TARGET_NOT_A_CONTAINER);
+                         if (slot >= 0 && slot < container.getContainerSize()) {
+@@ -382,7 +382,7 @@ public class ItemCommands {
+     private static int setBlockItem(CommandSourceStack source, BlockPos pos, int slot, ItemStack item) throws CommandSyntaxException {
+         // Folia start - vanilla commands
+         io.papermc.paper.threadedregions.RegionizedServer.getInstance().taskQueue.queueChunkTask(
+-                source.getLevel(), pos.getX() << 4, pos.getZ() << 4, () -> {
++                source.getLevel(), pos.getX() >> 4, pos.getZ() >> 4, () -> {
+                     try {
+                         Container container = getContainer(source, pos, ERROR_TARGET_NOT_A_CONTAINER);
+                         if (slot >= 0 && slot < container.getContainerSize()) {
+diff --git a/net/minecraft/server/commands/LootCommand.java b/net/minecraft/server/commands/LootCommand.java
+index dce23eb45efd4f762e6bbab75abbcbf20c554bc5..1e945dd65f9ba0f65100555188ed811755b32853 100644
+--- a/net/minecraft/server/commands/LootCommand.java
++++ b/net/minecraft/server/commands/LootCommand.java
+@@ -25,6 +25,7 @@ import net.minecraft.network.chat.Component;
+ import net.minecraft.resources.ResourceKey;
+ import net.minecraft.server.level.ServerLevel;
+ import net.minecraft.server.level.ServerPlayer;
++import net.minecraft.util.Mth;
+ import net.minecraft.world.Container;
+ import net.minecraft.world.entity.Entity;
+ import net.minecraft.world.entity.EquipmentSlot;
+@@ -277,18 +278,30 @@ public class LootCommand {
+     }
+ 
+     private static int blockDistribute(CommandSourceStack source, BlockPos pos, List<ItemStack> items, LootCommand.Callback callback) throws CommandSyntaxException {
+-        Container container = getContainer(source, pos);
+-        List<ItemStack> list = Lists.newArrayListWithCapacity(items.size());
+-
+-        for (ItemStack itemStack : items) {
+-            if (distributeToContainer(container, itemStack.copy())) {
+-                container.setChanged();
+-                list.add(itemStack);
+-            }
+-        }
+-
+-        callback.accept(list);
+-        return list.size();
++        // Folia start - vanilla commands
++        io.papermc.paper.threadedregions.RegionizedServer.getInstance().taskQueue.queueTickTaskQueue(
++                source.getLevel(), pos.getX() >> 4, pos.getZ() >> 4, () -> {
++                    try {
++                        Container container = null;
++                        container = getContainer(source, pos);
++                        List<ItemStack> list = Lists.newArrayListWithCapacity(items.size());
++
++                        for (ItemStack itemStack : items) {
++                            if (distributeToContainer(container, itemStack.copy())) {
++                                container.setChanged();
++                                list.add(itemStack);
++                            }
++                        }
++
++                        callback.accept(list);
++                        //return list.size();
++                    } catch (CommandSyntaxException e) {
++                        //throw new RuntimeException(e);
++                        source.sendFailure((Component)e.getRawMessage());
++                    }
++                });
++        return 42;
++        // Folia end - vanilla commands
+     }
+ 
+     private static boolean distributeToContainer(Container container, ItemStack item) {
+@@ -317,25 +330,35 @@ public class LootCommand {
+     }
+ 
+     private static int blockReplace(CommandSourceStack source, BlockPos pos, int slot, int numSlots, List<ItemStack> items, LootCommand.Callback callback) throws CommandSyntaxException {
+-        Container container = getContainer(source, pos);
+-        int containerSize = container.getContainerSize();
+-        if (slot >= 0 && slot < containerSize) {
+-            List<ItemStack> list = Lists.newArrayListWithCapacity(items.size());
+-
+-            for (int i = 0; i < numSlots; i++) {
+-                int i1 = slot + i;
+-                ItemStack itemStack = i < items.size() ? items.get(i) : ItemStack.EMPTY;
+-                if (container.canPlaceItem(i1, itemStack)) {
+-                    container.setItem(i1, itemStack);
+-                    list.add(itemStack);
+-                }
+-            }
+-
+-            callback.accept(list);
+-            return list.size();
+-        } else {
+-            throw ItemCommands.ERROR_TARGET_INAPPLICABLE_SLOT.create(slot);
+-        }
++        // Folia start - vanilla commands
++        io.papermc.paper.threadedregions.RegionizedServer.getInstance().taskQueue.queueTickTaskQueue(
++                source.getLevel(), pos.getX() >> 4, pos.getZ() >> 4, () -> {
++                    try {
++                        Container container = getContainer(source, pos);
++                        int containerSize = container.getContainerSize();
++                        if (slot >= 0 && slot < containerSize) {
++                            List<ItemStack> list = Lists.newArrayListWithCapacity(items.size());
++
++                            for (int i = 0; i < numSlots; i++) {
++                                int i1 = slot + i;
++                                ItemStack itemStack = i < items.size() ? items.get(i) : ItemStack.EMPTY;
++                                if (container.canPlaceItem(i1, itemStack)) {
++                                    container.setItem(i1, itemStack);
++                                    list.add(itemStack);
++                                }
++                            }
++
++                            callback.accept(list);
++                            //return list.size();
++                        } else {
++                            throw ItemCommands.ERROR_TARGET_INAPPLICABLE_SLOT.create(slot);
++                        }
++                    } catch (CommandSyntaxException e) {
++                        source.sendFailure((Component) e.getRawMessage());
++                    }
++                });
++        return 42;
++        // Folia end - vanilla commands
+     }
+ 
+     private static boolean canMergeItems(ItemStack first, ItemStack second) {
+@@ -343,53 +366,74 @@ public class LootCommand {
+     }
+ 
+     private static int playerGive(Collection<ServerPlayer> targets, List<ItemStack> items, LootCommand.Callback callback) throws CommandSyntaxException {
+-        List<ItemStack> list = Lists.newArrayListWithCapacity(items.size());
+-
++        // Folia start - vanilla commands
++        // List<ItemStack> list = Lists.newArrayListWithCapacity(items.size());
++        int i = 0;
+         for (ItemStack itemStack : items) {
+             for (ServerPlayer serverPlayer : targets) {
+-                if (serverPlayer.getInventory().add(itemStack.copy())) {
+-                    list.add(itemStack);
++                if (serverPlayer.getBukkitEntity().taskScheduler.schedule((ServerPlayer nmsEntity) -> {
++                    if (nmsEntity.getInventory().add(itemStack.copy())) {
++                        //list.add(itemStack);
++                    }
++                }, null, 0)) {
++                    i += 1;
+                 }
+             }
+         }
+ 
+-        callback.accept(list);
+-        return list.size();
++        callback.accept(Lists.newArrayList(items));
++        //return list.size();
++        return i;
++        // Folia end - vanilla commands
+     }
+ 
+-    private static void setSlots(Entity target, List<ItemStack> items, int startSlot, int numSlots, List<ItemStack> setItems) {
++    private static void setSlots(Entity target, List<ItemStack> items, int startSlot, int numSlots/*, List<ItemStack> setItems*/) { // Folia - vanilla commands
+         for (int i = 0; i < numSlots; i++) {
+             ItemStack itemStack = i < items.size() ? items.get(i) : ItemStack.EMPTY;
+             SlotAccess slot = target.getSlot(startSlot + i);
+-            if (slot != SlotAccess.NULL && slot.set(itemStack.copy())) {
++            // Folia start - vanilla commands
++            /*if (slot != SlotAccess.NULL && slot.set(itemStack.copy())) {
+                 setItems.add(itemStack);
+-            }
++            }*/
++            // Folia end - vanilla commands
+         }
+     }
+ 
+     private static int entityReplace(Collection<? extends Entity> targets, int startSlot, int numSlots, List<ItemStack> items, LootCommand.Callback callback) throws CommandSyntaxException {
+-        List<ItemStack> list = Lists.newArrayListWithCapacity(items.size());
+-
++        // Folia start - vanilla commands
++        //List<ItemStack> list = Lists.newArrayListWithCapacity(items.size());
++        int i = 0;
+         for (Entity entity : targets) {
+-            if (entity instanceof ServerPlayer serverPlayer) {
+-                setSlots(entity, items, startSlot, numSlots, list);
+-                serverPlayer.containerMenu.broadcastChanges();
+-            } else {
+-                setSlots(entity, items, startSlot, numSlots, list);
++            if (entity.getBukkitEntity().taskScheduler.schedule((Entity nmsEntity) -> {
++                if (nmsEntity instanceof ServerPlayer serverPlayer) {
++                    setSlots(nmsEntity, items, startSlot, numSlots/*, list*/);
++                    serverPlayer.containerMenu.broadcastChanges();
++                } else {
++                    setSlots(nmsEntity, items, startSlot, numSlots/*, list*/);
++                }
++            }, null, 1L)) {
++                i += 1;
+             }
+         }
+ 
+-        callback.accept(list);
+-        return list.size();
++        callback.accept(Lists.newArrayList(items));
++        //return list.size();
++        return i;
++        // Folia end - vanilla commands
+     }
+ 
+     private static int dropInWorld(CommandSourceStack source, Vec3 pos, List<ItemStack> items, LootCommand.Callback callback) throws CommandSyntaxException {
+         ServerLevel level = source.getLevel();
+-        items.forEach(itemStack -> {
+-            ItemEntity itemEntity = new ItemEntity(level, pos.x, pos.y, pos.z, itemStack.copy());
+-            itemEntity.setDefaultPickUpDelay();
+-            level.addFreshEntity(itemEntity);
+-        });
++        // Folia start - vanilla commands
++        io.papermc.paper.threadedregions.RegionizedServer.getInstance().taskQueue.queueTickTaskQueue(
++                source.getLevel(), Mth.floor(pos.x()) >> 4, Mth.floor(pos.z()) >> 4, () -> {
++                    items.forEach(itemStack -> {
++                        ItemEntity itemEntity = new ItemEntity(level, pos.x, pos.y, pos.z, itemStack.copy());
++                        itemEntity.setDefaultPickUpDelay();
++                        level.addFreshEntity(itemEntity);
++                    });
++                });
++        // Folia end - vanilla commands
+         callback.accept(items);
+         return items.size();
+     }
+@@ -431,6 +475,11 @@ public class LootCommand {
+     private static int dropBlockLoot(CommandContext<CommandSourceStack> context, BlockPos pos, ItemStack tool, LootCommand.DropConsumer dropConsumer) throws CommandSyntaxException {
+         CommandSourceStack commandSourceStack = context.getSource();
+         ServerLevel level = commandSourceStack.getLevel();
++        // Folia start - vanilla commands
++        io.papermc.paper.threadedregions.RegionizedServer.getInstance().taskQueue.queueTickTaskQueue(
++                level, pos.getX() >> 4, pos.getZ() >> 4, () -> {
++                    try {
++        // Folia end - vanilla commands
+         BlockState blockState = level.getBlockState(pos);
+         BlockEntity blockEntity = level.getBlockEntity(pos);
+         Optional<ResourceKey<LootTable>> lootTable = blockState.getBlock().getLootTable();
+@@ -444,11 +493,23 @@ public class LootCommand {
+                 .withOptionalParameter(LootContextParams.THIS_ENTITY, commandSourceStack.getEntity())
+                 .withParameter(LootContextParams.TOOL, tool);
+             List<ItemStack> drops = blockState.getDrops(builder);
+-            return dropConsumer.accept(context, drops, items -> callback(commandSourceStack, items, lootTable.get()));
++            /*return*/ dropConsumer.accept(context, drops, items -> callback(commandSourceStack, items, lootTable.get())); // Folia - vanilla commands
+         }
++
++        // Folia start - vanilla commands
++        }
++        catch (CommandSyntaxException e) {
++            commandSourceStack.sendFailure((Component)e.getRawMessage());
++        }});
++        return 42;
++        // Folia end - vanilla commands
+     }
+ 
+-    private static int dropKillLoot(CommandContext<CommandSourceStack> context, Entity entity, LootCommand.DropConsumer dropConsumer) throws CommandSyntaxException {
++    // Folia start - vanilla commands
++    private static int dropKillLoot(CommandContext<CommandSourceStack> context, Entity entity2, LootCommand.DropConsumer dropConsumer) throws CommandSyntaxException {
++        entity2.getBukkitEntity().taskScheduler.schedule((Entity entity) -> {
++            try {
++                // Folia end - vanilla commands
+         Optional<ResourceKey<LootTable>> lootTable = entity.getLootTable();
+         if (lootTable.isEmpty()) {
+             throw ERROR_NO_ENTITY_LOOT_TABLE.create(entity.getDisplayName());
+@@ -468,8 +529,17 @@ public class LootCommand {
+             LootParams lootParams = builder.create(LootContextParamSets.ENTITY);
+             LootTable lootTable1 = commandSourceStack.getServer().reloadableRegistries().getLootTable(lootTable.get());
+             List<ItemStack> randomItems = lootTable1.getRandomItems(lootParams);
+-            return dropConsumer.accept(context, randomItems, items -> callback(commandSourceStack, items, lootTable.get()));
++            // Folia start - vanilla commands
++            /*return*/ dropConsumer.accept(context, randomItems, items -> callback(commandSourceStack, items, lootTable.get()));
+         }
++
++            } catch (CommandSyntaxException e) {
++            context.getSource().sendFailure((Component) e.getRawMessage());
++            }
++
++        }, null, 1L);
++        // Folia end - vanilla commands
++        return 42;
+     }
+ 
+     private static int dropChestLoot(CommandContext<CommandSourceStack> context, Holder<LootTable> lootTable, LootCommand.DropConsumer dropCOnsimer) throws CommandSyntaxException {
+diff --git a/net/minecraft/server/commands/ReloadCommand.java b/net/minecraft/server/commands/ReloadCommand.java
+index b540a3c3a02f7242578a63477e34b9063e86f1d2..7f9547061a9a3645a9b4de5a6ec04f33b8a25fe3 100644
+--- a/net/minecraft/server/commands/ReloadCommand.java
++++ b/net/minecraft/server/commands/ReloadCommand.java
+@@ -16,11 +16,13 @@ public class ReloadCommand {
+     private static final Logger LOGGER = LogUtils.getLogger();
+ 
+     public static void reloadPacks(Collection<String> selectedIds, CommandSourceStack source) {
+-        source.getServer().reloadResources(selectedIds, io.papermc.paper.event.server.ServerResourcesReloadedEvent.Cause.COMMAND).exceptionally(throwable -> { // Paper - Add ServerResourcesReloadedEvent
+-            LOGGER.warn("Failed to execute reload", throwable);
+-            source.sendFailure(Component.translatable("commands.reload.failure"));
+-            return null;
+-        });
++        io.papermc.paper.threadedregions.RegionizedServer.getInstance().addTask(() -> { // Folia - vanilla commands
++            source.getServer().reloadResources(selectedIds, io.papermc.paper.event.server.ServerResourcesReloadedEvent.Cause.COMMAND).exceptionally(throwable -> { // Paper - Add ServerResourcesReloadedEvent
++                LOGGER.warn("Failed to execute reload", throwable);
++                source.sendFailure(Component.translatable("commands.reload.failure"));
++                return null;
++            });
++        }); // Folia - vanilla commands
+     }
+ 
+     private static Collection<String> discoverNewPacks(PackRepository packRepository, WorldData worldData, Collection<String> selectedIds) {
+@@ -39,11 +41,13 @@ public class ReloadCommand {
+ 
+     // CraftBukkit start
+     public static void reload(MinecraftServer server) {
+-        PackRepository packRepository = server.getPackRepository();
+-        WorldData worldData = server.getWorldData();
+-        Collection<String> selectedIds = packRepository.getSelectedIds();
+-        Collection<String> collection = discoverNewPacks(packRepository, worldData, selectedIds);
+-        server.reloadResources(collection, io.papermc.paper.event.server.ServerResourcesReloadedEvent.Cause.PLUGIN); // Paper - Add ServerResourcesReloadedEvent
++        io.papermc.paper.threadedregions.RegionizedServer.getInstance().addTask(() -> { // Folia - vanilla commands
++            PackRepository packRepository = server.getPackRepository();
++            WorldData worldData = server.getWorldData();
++            Collection<String> selectedIds = packRepository.getSelectedIds();
++            Collection<String> collection = discoverNewPacks(packRepository, worldData, selectedIds);
++            server.reloadResources(collection, io.papermc.paper.event.server.ServerResourcesReloadedEvent.Cause.PLUGIN); // Paper - Add ServerResourcesReloadedEvent
++        }); // Folia - vanilla commands
+     }
+     // CraftBukkit end
+ 
+diff --git a/net/minecraft/server/commands/RideCommand.java b/net/minecraft/server/commands/RideCommand.java
+index c9c70df8377a58fadf0abcc9e0d88ddcaa8e1f0f..e02c9269a6c97fec1c9daf7573334a165f7727c8 100644
+--- a/net/minecraft/server/commands/RideCommand.java
++++ b/net/minecraft/server/commands/RideCommand.java
+@@ -61,15 +61,15 @@ public class RideCommand {
+         target.getBukkitEntity().taskScheduler.schedule((Entity nmsEntity) -> {
+         Entity vehicle1 = nmsEntity.getVehicle();
+         if (vehicle1 != null) {
+-            source.sendFailure(Component.literal(ERROR_ALREADY_RIDING.create(nmsEntity.getDisplayName(), vehicle1.getDisplayName()).getMessage()));
++            source.sendFailure((Component) ERROR_ALREADY_RIDING.create(nmsEntity.getDisplayName(), vehicle1.getDisplayName()).getRawMessage());
+         } else if (vehicle.getType() == EntityType.PLAYER && !io.papermc.paper.configuration.GlobalConfiguration.get().commands.rideCommandAllowPlayerAsVehicle) { // Paper - allow player as vehicle
+-            source.sendFailure(Component.literal( ERROR_MOUNTING_PLAYER.create().getMessage()));
++            source.sendFailure((Component) ERROR_MOUNTING_PLAYER.create().getRawMessage());
+         } else if (nmsEntity.getSelfAndPassengers().anyMatch(entity -> entity == vehicle)) {
+-            source.sendFailure(Component.literal( ERROR_MOUNTING_LOOP.create().getMessage()));
++            source.sendFailure((Component) ERROR_MOUNTING_LOOP.create().getRawMessage());
+         } else if (nmsEntity.level() != vehicle.level()) {
+-            source.sendFailure(Component.literal( ERROR_WRONG_DIMENSION.create().getMessage()));
++            source.sendFailure((Component) ERROR_WRONG_DIMENSION.create().getRawMessage());
+         } else if (!nmsEntity.startRiding(vehicle, true)) {
+-            source.sendFailure(Component.literal( ERROR_MOUNT_FAILED.create(nmsEntity.getDisplayName(), vehicle.getDisplayName()).getMessage()));
++            source.sendFailure((Component)  ERROR_MOUNT_FAILED.create(nmsEntity.getDisplayName(), vehicle.getDisplayName()).getRawMessage());
+         } else {
+             source.sendSuccess(() -> Component.translatable("commands.ride.mount.success", nmsEntity.getDisplayName(), vehicle.getDisplayName()), true);
+             //return 1;
+@@ -84,7 +84,7 @@ public class RideCommand {
+             Entity vehicle = nmsEntity.getVehicle();
+             if (vehicle == null) {
+                 //throw ERROR_NOT_RIDING.create(target.getDisplayName());
+-                source.sendFailure(Component.literal(ERROR_NOT_RIDING.create(nmsEntity.getDisplayName()).getMessage()));
++                source.sendFailure((Component) ERROR_NOT_RIDING.create(nmsEntity.getDisplayName()).getRawMessage());
+             } else {
+                 nmsEntity.stopRiding();
+                 source.sendSuccess(() -> Component.translatable("commands.ride.dismount.success", nmsEntity.getDisplayName(), vehicle.getDisplayName()), true);
+diff --git a/net/minecraft/server/commands/SpectateCommand.java b/net/minecraft/server/commands/SpectateCommand.java
+index d85d3a1c52d592807c76f74c267e8eae4ebfc8e8..7994c3a5f6951232a004c64e74a8cf8933a83a8f 100644
+--- a/net/minecraft/server/commands/SpectateCommand.java
++++ b/net/minecraft/server/commands/SpectateCommand.java
+@@ -52,8 +52,7 @@ public class SpectateCommand {
+             } else {
+                 source.sendSuccess(() -> Component.translatable("commands.spectate.success.stopped"), false);
+             }
+-
+-            return 1;
+         }
++        return 1;
+     }
+ }
+diff --git a/net/minecraft/server/commands/SpreadPlayersCommand.java b/net/minecraft/server/commands/SpreadPlayersCommand.java
+index 1e46d6fadd6ce98e5cf191a5d355164ed0fcf127..068abe8239c2ce9ee06f9fa5dafe9a61af43756d 100644
+--- a/net/minecraft/server/commands/SpreadPlayersCommand.java
++++ b/net/minecraft/server/commands/SpreadPlayersCommand.java
+@@ -28,6 +28,7 @@ import net.minecraft.world.entity.Entity;
+ import net.minecraft.world.entity.player.Player;
+ import net.minecraft.world.level.BlockGetter;
+ import net.minecraft.world.level.block.state.BlockState;
++import net.minecraft.world.level.portal.TeleportTransition;
+ import net.minecraft.world.phys.Vec2;
+ import net.minecraft.world.phys.Vec3;
+ import net.minecraft.world.scores.Team;
+@@ -249,8 +250,9 @@ public class SpreadPlayersCommand {
+ 
+             // Folia start - vanilla commands
+             final ServerLevel worldFinal = level;
++            final Vec3 posOriginal = entity.getPosition(0);
+             Vec3 posFinal = new Vec3(Mth.floor(position.x) + 0.5,
+-                    position.getSpawnY(level, maxHeight),
++                    maxHeight,
+                     Mth.floor(position.z) + 0.5);
+             Float yawFinal = entity.getYRot();
+             Float pitchFinal = entity.getXRot();
+@@ -263,6 +265,40 @@ public class SpreadPlayersCommand {
+                         null
+                 );
+             }, null, 1L);
++            // on the following tick, ensure that the player moves to ground level so they don't die
++            entity.getBukkitEntity().taskScheduler.schedule((Entity nmsEntity) -> {
++                // if the destination is unsafe, then update the block
++                int maxIterationCount = 12;
++                int y = position.getSpawnY(level, maxHeight);
++                final int originalY = y;
++                BlockPos.MutableBlockPos blockPos = new BlockPos.MutableBlockPos(nmsEntity.getX(), y, nmsEntity.getZ());
++                BlockState blockState = level.getBlockState(blockPos);
++                int iterationCount = 0;
++                while (/*blockPos.getY() > y || blockState.liquid() || */blockState.is(BlockTags.FIRE)) {
++                    if (iterationCount > MAX_ITERATION_COUNT) {
++                        //still count not find anywhere - go back
++                        nmsEntity.getBukkitEntity().taskScheduler.schedule((Entity nmsEntity2) -> {
++                            nmsEntity.unRide();
++                            nmsEntity.teleportAsync(
++                                    worldFinal, posOriginal, yawFinal, pitchFinal, Vec3.ZERO,
++                                    org.bukkit.event.player.PlayerTeleportEvent.TeleportCause.UNKNOWN,
++                                    Entity.TELEPORT_FLAG_LOAD_CHUNK,
++                                    null
++                            );
++                        }, null, 1L);
++                        return;
++                    }
++                    //check new potential locations for spawning
++                    position.x += (iterationCount > 3 && iterationCount < 9 ? -4 : 4);
++                    position.z += (iterationCount > 6 ? -4 : 4);
++                    y = position.getSpawnY(level, y+10);
++                    blockPos.move(4, y-blockPos.getY(), 4);
++                    blockState = level.getBlockState(blockPos);
++                    iterationCount++;
++
++                }
++                nmsEntity.teleportTo(Mth.floor(position.x) + 0.5, y, Mth.floor(position.z) + 0.5);
++            }, null, 3L);
+             /*entity.teleportTo(
+                 level,
+                 Mth.floor(position.x) + 0.5,
+diff --git a/net/minecraft/server/commands/data/BlockDataAccessor.java b/net/minecraft/server/commands/data/BlockDataAccessor.java
+index 392367bd20187b5797bb5d79c234ddc5470a7b56..463ae532bc3caf18f658c28152eba86daa5c152c 100644
+--- a/net/minecraft/server/commands/data/BlockDataAccessor.java
++++ b/net/minecraft/server/commands/data/BlockDataAccessor.java
+@@ -54,6 +54,10 @@ public class BlockDataAccessor implements DataAccessor {
+ 
+     @Override
+     public void setData(CompoundTag other) {
++        // Folia start - vanilla commands
++        io.papermc.paper.threadedregions.RegionizedServer.getInstance().taskQueue.queueTickTaskQueue(
++                entity.getLevel().getMinecraftWorld(), pos.getX() >> 4, pos.getZ() >> 4, () -> {
++                    // Folia end - vanilla commands
+         BlockState blockState = this.entity.getLevel().getBlockState(this.pos);
+ 
+         try (ProblemReporter.ScopedCollector scopedCollector = new ProblemReporter.ScopedCollector(this.entity.problemPath(), LOGGER)) {
+@@ -61,6 +65,8 @@ public class BlockDataAccessor implements DataAccessor {
+             this.entity.setChanged();
+             this.entity.getLevel().sendBlockUpdated(this.pos, blockState, blockState, 3);
+         }
++                }); // Folia - vanilla commands
++
+     }
+ 
+     @Override
+diff --git a/net/minecraft/server/commands/data/EntityDataAccessor.java b/net/minecraft/server/commands/data/EntityDataAccessor.java
+index 3092454bf7071deca75fecfc203072593fe5c7e7..8abb1fc49cd50b53bb8090d1d12f775f7536388a 100644
+--- a/net/minecraft/server/commands/data/EntityDataAccessor.java
++++ b/net/minecraft/server/commands/data/EntityDataAccessor.java
+@@ -50,12 +50,14 @@ public class EntityDataAccessor implements DataAccessor {
+         if (this.entity instanceof Player) {
+             throw ERROR_NO_PLAYERS.create();
+         } else {
+-            UUID uuid = this.entity.getUUID();
++            this.entity.getBukkitEntity().taskScheduler.schedule((Entity nmsEntity) -> {
++                UUID uuid = nmsEntity.getUUID();
+ 
+-            try (ProblemReporter.ScopedCollector scopedCollector = new ProblemReporter.ScopedCollector(this.entity.problemPath(), LOGGER)) {
+-                this.entity.load(TagValueInput.create(scopedCollector, this.entity.registryAccess(), other));
+-                this.entity.setUUID(uuid);
+-            }
++                try (ProblemReporter.ScopedCollector scopedCollector = new ProblemReporter.ScopedCollector(nmsEntity.problemPath(), LOGGER)) {
++                    nmsEntity.load(TagValueInput.create(scopedCollector, nmsEntity.registryAccess(), other));
++                    nmsEntity.setUUID(uuid);
++                }
++            }, null, 1L);
+         }
+     }
+ 
+diff --git a/net/minecraft/world/level/storage/CommandStorage.java b/net/minecraft/world/level/storage/CommandStorage.java
+index 800abb5db7907b54f8ba8684e187443a67fdd765..812c05a876a6ec2d38221c222a382bad50bea173 100644
+--- a/net/minecraft/world/level/storage/CommandStorage.java
++++ b/net/minecraft/world/level/storage/CommandStorage.java
+@@ -15,7 +15,7 @@ import net.minecraft.world.level.saveddata.SavedDataType;
+ 
+ public class CommandStorage {
+     private static final String ID_PREFIX = "command_storage_";
+-    private final Map<String, CommandStorage.Container> namespaces = new HashMap<>();
++    private final Map<String, CommandStorage.Container> namespaces = new java.util.concurrent.ConcurrentHashMap<>(); // Folia - vanilla commands
+     private final DimensionDataStorage storage;
+ 
+     public CommandStorage(DimensionDataStorage storage) {
