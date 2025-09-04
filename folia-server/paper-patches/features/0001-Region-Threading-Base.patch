@@ -434,10 +434,10 @@ index 3f5e76e4df8ff8152060449f89b522910adee834..04826c91b624cf6e3c8f762a17de52f3
 +    // Folia end - threaded regions
  }
 diff --git a/src/main/java/io/papermc/paper/configuration/WorldConfiguration.java b/src/main/java/io/papermc/paper/configuration/WorldConfiguration.java
-index 4a974026967fb09a28812575c9d6166eec2560ae..e9594279677040d4860683a1475c269871b211ff 100644
+index bd1f0ba488ff9f12de4b85c97617638592bab09c..5c735a574a4233b87f19d7b22514a8591f642161 100644
 --- a/src/main/java/io/papermc/paper/configuration/WorldConfiguration.java
 +++ b/src/main/java/io/papermc/paper/configuration/WorldConfiguration.java
-@@ -497,6 +497,7 @@ public class WorldConfiguration extends ConfigurationPart {
+@@ -500,6 +500,7 @@ public class WorldConfiguration extends ConfigurationPart {
      public Chunks chunks;
  
      public class Chunks extends ConfigurationPart {
@@ -445,7 +445,7 @@ index 4a974026967fb09a28812575c9d6166eec2560ae..e9594279677040d4860683a1475c2698
          public AutosavePeriod autoSaveInterval = AutosavePeriod.def();
          public int maxAutoSaveChunksPerTick = 24;
          public int fixedChunkInhabitedTime = -1;
-@@ -515,6 +516,7 @@ public class WorldConfiguration extends ConfigurationPart {
+@@ -518,6 +519,7 @@ public class WorldConfiguration extends ConfigurationPart {
  
          @PostProcess
          private void postProcess() {
@@ -453,6 +453,19 @@ index 4a974026967fb09a28812575c9d6166eec2560ae..e9594279677040d4860683a1475c2698
              FeatureHooks.setPlayerChunkUnloadDelay(this.delayChunkUnloadsBy.ticks());
          }
      }
+diff --git a/src/main/java/io/papermc/paper/console/BrigadierCommandCompleter.java b/src/main/java/io/papermc/paper/console/BrigadierCommandCompleter.java
+index c2174c8ae594fe8ec7741ecdbb53e9acc2bbf5b2..0762cfa9748ed6feff74abe060756d7ad55f96cd 100644
+--- a/src/main/java/io/papermc/paper/console/BrigadierCommandCompleter.java
++++ b/src/main/java/io/papermc/paper/console/BrigadierCommandCompleter.java
+@@ -46,7 +46,7 @@ public final class BrigadierCommandCompleter {
+         final ParseResults<CommandSourceStack> results = dispatcher.parse(new StringReader(line.line()), this.commandSourceStack.get());
+         this.addCandidates(
+             candidates,
+-            CompletableFuture.supplyAsync(() -> dispatcher.getCompletionSuggestions(results, line.cursor()), this.server::scheduleOnMain)
++            CompletableFuture.supplyAsync(() -> dispatcher.getCompletionSuggestions(results, line.cursor()), io.papermc.paper.threadedregions.RegionizedServer.getInstance()::addTask) // Folia - region threading
+                 .thenCompose(Function.identity())
+                 .join()
+                 .getList(),
 diff --git a/src/main/java/io/papermc/paper/entity/PaperSchoolableFish.java b/src/main/java/io/papermc/paper/entity/PaperSchoolableFish.java
 index 04c8213ae6f38902e88f8dcdc77ad70dbcd36afa..b663b38529f25756cc6f8130e2e4e02fe36caa21 100644
 --- a/src/main/java/io/papermc/paper/entity/PaperSchoolableFish.java
@@ -769,7 +782,7 @@ index 8492a06883e2ff597bbbdaa74fe5e5cdd0a0a1b1..ff6d200c3c3ecb958086f11dff39357d
                  MinecraftServer.LOGGER.warn("Asynchronous " + reason + "!", new IllegalStateException());
              }
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 32fe51b19323e3c4c56e7f9e621e6e808ee5fe38..9b182315682b5795b2cb6438ea440591ddddc5a3 100644
+index 1d12a870a2f239bf95df639ef350b38911558199..53c8009cd4886ddcf1f2ea72b6e51b308c72719c 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -318,7 +318,7 @@ public final class CraftServer implements Server {
@@ -3774,7 +3787,7 @@ index 9851c3890c9377d9fd1813f82766c2841ae48fd4..034b210ca024dcb3d9f59f1cdeef8c16
      }
  
 diff --git a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
-index 08db922da37984b82f57c210f6613543d32303bc..c586e42c5056fddb7641d5105950c0565030a983 100644
+index 49ce3fdcb8f3f6125e60bf667d79f23cc1629085..00416e0fe016b1e6502a0b57ffc623c68e8f2893 100644
 --- a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
 +++ b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
 @@ -819,7 +819,7 @@ public class CraftEventFactory {

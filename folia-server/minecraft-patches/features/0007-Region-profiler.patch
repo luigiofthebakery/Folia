@@ -1458,10 +1458,10 @@ index 4a7de2ed6eabe919f0c33de49ed7fab75abac1b4..7280ca2250ade4166a1a883b205bbc89
                          if (var4 instanceof ReportedException reportedException && reportedException.getCause() instanceof OutOfMemoryError) {
                              throw makeReportedException(var4, packet, processor);
 diff --git a/net/minecraft/server/MinecraftServer.java b/net/minecraft/server/MinecraftServer.java
-index 5a8cbe318e9a6ad528f881cbfac213b1e9d67fda..0238bce5c050808798f092dc07a0206502704bc9 100644
+index 812629d9b5e763cd98766d6a72e31d5d114e35bf..92ba82b9040762d11d39b3aed89fbc098eb93623 100644
 --- a/net/minecraft/server/MinecraftServer.java
 +++ b/net/minecraft/server/MinecraftServer.java
-@@ -1580,6 +1580,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1581,6 +1581,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
      // Folia start - region threading
      public void tickServer(long startTime, long scheduledEnd, long targetBuffer,
                             io.papermc.paper.threadedregions.TickRegions.TickRegionData region) {
@@ -1469,7 +1469,7 @@ index 5a8cbe318e9a6ad528f881cbfac213b1e9d67fda..0238bce5c050808798f092dc07a02065
          // Folia end - region threading
          org.spigotmc.WatchdogThread.tick(); // Spigot
          long nanos = startTime; // Folia - region threading
-@@ -1617,6 +1618,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1618,6 +1619,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
              }
          }
  
@@ -1477,7 +1477,7 @@ index 5a8cbe318e9a6ad528f881cbfac213b1e9d67fda..0238bce5c050808798f092dc07a02065
          // Folia start - region threading
          region.world.getCurrentWorldData().updateTickData();
          if (region.world.checkInitialised.get() != ServerLevel.WORLD_INIT_CHECKED) {
-@@ -1638,17 +1640,26 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1639,17 +1641,26 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
          new com.destroystokyo.paper.event.server.ServerTickStartEvent((int)region.getCurrentTick()).callEvent(); // Paper - Server Tick Events // Folia - region threading
          // Folia start - region threading
          if (region != null) {
@@ -1504,7 +1504,7 @@ index 5a8cbe318e9a6ad528f881cbfac213b1e9d67fda..0238bce5c050808798f092dc07a02065
          }
          // Folia end - region threading
          //this.tickCount++; // Folia - region threading
-@@ -1668,6 +1679,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1669,6 +1680,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
          }
          profiler.push("save");
          final boolean fullSave = autosavePeriod > 0 && io.papermc.paper.threadedregions.RegionizedServer.getCurrentTick() % autosavePeriod == 0; // Folia - region threading
@@ -1512,7 +1512,7 @@ index 5a8cbe318e9a6ad528f881cbfac213b1e9d67fda..0238bce5c050808798f092dc07a02065
          try {
              this.isSaving = true;
              if (playerSaveInterval > 0) {
-@@ -1681,6 +1693,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1682,6 +1694,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
          } finally {
              this.isSaving = false;
          }
@@ -1520,7 +1520,7 @@ index 5a8cbe318e9a6ad528f881cbfac213b1e9d67fda..0238bce5c050808798f092dc07a02065
          profiler.pop();
          // Paper end - Incremental chunk and player saving
  
-@@ -1762,6 +1775,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1763,6 +1776,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
      // Folia - region threading - moved to regionised data
  
      protected void tickChildren(BooleanSupplier hasTimeLeft, io.papermc.paper.threadedregions.TickRegions.TickRegionData region) { // Folia - region threading
@@ -1528,7 +1528,7 @@ index 5a8cbe318e9a6ad528f881cbfac213b1e9d67fda..0238bce5c050808798f092dc07a02065
          final io.papermc.paper.threadedregions.RegionizedWorldData regionizedWorldData = io.papermc.paper.threadedregions.TickRegionScheduler.getCurrentRegionizedWorldData(); // Folia - regionised ticking
          ProfilerFiller profilerFiller = Profiler.get();
          //this.getPlayerList().getPlayers().forEach(serverPlayer1 -> serverPlayer1.connection.suspendFlushing()); // Folia - region threading
-@@ -1815,7 +1829,9 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1816,7 +1830,9 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
              profilerFiller.push("tick");
  
              try {
@@ -1538,7 +1538,7 @@ index 5a8cbe318e9a6ad528f881cbfac213b1e9d67fda..0238bce5c050808798f092dc07a02065
              } catch (Throwable var7) {
                  CrashReport crashReport = CrashReport.forThrowable(var7, "Exception ticking world");
                  serverLevel.fillReportDetails(crashReport);
-@@ -1829,7 +1845,9 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1830,7 +1846,9 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
          //this.isIteratingOverLevels = false; // Paper - Throw exception on world create while being ticked // Folia - region threading
  
          profilerFiller.popPush("connection");
