@@ -1,0 +1,32 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: root <root@iDeas20.localdomain>
+Date: Sat, 6 Sep 2025 00:12:12 +1000
+Subject: [PATCH] Enable command blocks
+
+
+diff --git a/io/papermc/paper/threadedregions/RegionizedServer.java b/io/papermc/paper/threadedregions/RegionizedServer.java
+index e1842ab8f20271a8b20ab8462b09a4745a612a9a..2c44fbb7b6a7bf5ed95a73191009da58f2399645 100644
+--- a/io/papermc/paper/threadedregions/RegionizedServer.java
++++ b/io/papermc/paper/threadedregions/RegionizedServer.java
+@@ -60,7 +60,7 @@ public final class RegionizedServer {
+ 
+     public void init() {
+         // call init event _before_ scheduling anything
+-        new RegionizedServerInitEvent().callEvent();
++        //new RegionizedServerInitEvent().callEvent();
+ 
+         // now we can schedule
+         this.tickHandle.setInitialStart(System.nanoTime() + TickRegionScheduler.TIME_BETWEEN_TICKS);
+diff --git a/net/minecraft/world/level/BaseCommandBlock.java b/net/minecraft/world/level/BaseCommandBlock.java
+index 8b8ce26de104211728d4b64e641a2b471ce89073..e563758afec20fab2567a133a9b72fc9a5207701 100644
+--- a/net/minecraft/world/level/BaseCommandBlock.java
++++ b/net/minecraft/world/level/BaseCommandBlock.java
+@@ -96,7 +96,7 @@ public abstract class BaseCommandBlock implements CommandSource {
+     }
+ 
+     public boolean performCommand(Level level) {
+-        if (true) return false; // Folia - region threading
++        //if (true) return false; // Folia - region threading
+         if (level.isClientSide || level.getGameTime() == this.lastExecution) {
+             return false;
+         } else if ("Searge".equalsIgnoreCase(this.command)) {
