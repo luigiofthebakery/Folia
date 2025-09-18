@@ -39,7 +39,8 @@ jobs:
           name: ${{ env.project_id_b }} - ${{ github.run_number }}
           body: |
             This release is automatically compiled by GitHub Actions
-            Please note this is a minimalist version and does not support everything!
+            Folia: now with command block and scoreboard support! 
+            The aim of this fork is to re-enable vanilla commands, scoreboard and command blocks. The way this is accomplished is by using ConcurrentHashMap or synchronised maps, and making use of the Folia schedulers to maintain Folia's synchronisation rules, avoid race conditions and main thread safety. Note that a caveat of this is that commands may execute out of sequence (datapack functions may break or have unexpected behaviour) or the effects may be delayed to the subsequent tick, particularly if the target is located in a region other than the one of the command source.
             ### Commit Message
             ${{ env.commit_msg }}
           artifacts: folia-server/build/libs/folia-paperclip-1.21.8-R0.1-SNAPSHOT-mojmap.jar
