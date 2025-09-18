@@ -1,0 +1,513 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: root <root@iDeas20.localdomain>
+Date: Thu, 18 Sep 2025 22:34:19 +1000
+Subject: [PATCH] Schedule command and important fixes for command blocks
+
+
+diff --git a/net/minecraft/commands/Commands.java b/net/minecraft/commands/Commands.java
+index 44930e398bef021dbc9a7e7d361093837aa18b41..9a768867c8e27066c9bb2d9a139373b791966bc1 100644
+--- a/net/minecraft/commands/Commands.java
++++ b/net/minecraft/commands/Commands.java
+@@ -224,7 +224,7 @@ public class Commands {
+         RideCommand.register(this.dispatcher); // Folia - vanilla commands
+         RotateCommand.register(this.dispatcher); // Folia - vanilla commands
+         SayCommand.register(this.dispatcher);
+-        //ScheduleCommand.register(this.dispatcher); // Folia - region threading
++        ScheduleCommand.register(this.dispatcher); // Folia - region threading
+         ScoreboardCommand.register(this.dispatcher, context); // Folia - vanilla commands
+         SeedCommand.register(this.dispatcher, selection != Commands.CommandSelection.INTEGRATED);
+         VersionCommand.register(this.dispatcher, selection != Commands.CommandSelection.INTEGRATED);
+diff --git a/net/minecraft/server/ServerScoreboard.java b/net/minecraft/server/ServerScoreboard.java
+index fc1c377ad05edcefacd407671801ae605f3fc31a..35490ef61813beb62405bf796aefd7e99a92816a 100644
+--- a/net/minecraft/server/ServerScoreboard.java
++++ b/net/minecraft/server/ServerScoreboard.java
+@@ -2,10 +2,9 @@ package net.minecraft.server;
+ 
+ import com.google.common.collect.Lists;
+ import com.google.common.collect.Sets;
+-import java.util.List;
+-import java.util.Objects;
+-import java.util.Optional;
+-import java.util.Set;
++
++import java.util.*;
++import java.util.concurrent.ConcurrentHashMap;
+ import javax.annotation.Nullable;
+ import net.minecraft.network.protocol.Packet;
+ import net.minecraft.network.protocol.game.ClientboundResetScorePacket;
+@@ -34,8 +33,8 @@ public class ServerScoreboard extends Scoreboard {
+         }, DataFixTypes.SAVED_DATA_SCOREBOARD
+     );
+     private final MinecraftServer server;
+-    private final Set<Objective> trackedObjectives = Sets.newHashSet();
+-    private final List<Runnable> dirtyListeners = Lists.newArrayList();
++    private final Set<Objective> trackedObjectives = Collections.newSetFromMap(new ConcurrentHashMap<>()); // Folia - vanilla commands
++    private final List<Runnable> dirtyListeners = Collections.synchronizedList(Lists.newArrayList()); // Folia - vanilla commands
+ 
+     public ServerScoreboard(MinecraftServer server) {
+         this.server = server;
+@@ -209,9 +208,14 @@ public class ServerScoreboard extends Scoreboard {
+     }
+ 
+     protected void setDirty() {
+-        for (Runnable runnable : this.dirtyListeners) {
+-            runnable.run();
++        // Folia start - vanilla commands
++        int count = this.dirtyListeners.size();
++        for (int i = 0; i < count; i++) {
++            try {
++                this.dirtyListeners.get(i).run();
++            } catch (IndexOutOfBoundsException e) {}
+         }
++        // Folia end - vanilla commands
+     }
+ 
+     public List<Packet<?>> getStartTrackingPackets(Objective objective) {
+diff --git a/net/minecraft/server/commands/ScheduleCommand.java b/net/minecraft/server/commands/ScheduleCommand.java
+index b1e84f1105b03655a4fa1d94b0e8e330e8573791..c9e8a004261e86311e4a60d3a4c7f9afe501996d 100644
+--- a/net/minecraft/server/commands/ScheduleCommand.java
++++ b/net/minecraft/server/commands/ScheduleCommand.java
+@@ -1,5 +1,6 @@
+ package net.minecraft.server.commands;
+ 
++import ca.spottedleaf.concurrentutil.executor.PrioritisedExecutor;
+ import com.mojang.brigadier.CommandDispatcher;
+ import com.mojang.brigadier.arguments.IntegerArgumentType;
+ import com.mojang.brigadier.arguments.StringArgumentType;
+@@ -9,8 +10,15 @@ import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
+ import com.mojang.brigadier.suggestion.SuggestionProvider;
+ import com.mojang.datafixers.util.Either;
+ import com.mojang.datafixers.util.Pair;
++
++import java.io.File;
++import java.io.InputStream;
+ import java.util.Collection;
++import java.util.List;
+ import java.util.Optional;
++import java.util.logging.Logger;
++
++import io.papermc.paper.threadedregions.RegionizedServer;
+ import net.minecraft.commands.CommandSourceStack;
+ import net.minecraft.commands.Commands;
+ import net.minecraft.commands.SharedSuggestionProvider;
+@@ -24,6 +32,19 @@ import net.minecraft.server.MinecraftServer;
+ import net.minecraft.world.level.timers.FunctionCallback;
+ import net.minecraft.world.level.timers.FunctionTagCallback;
+ import net.minecraft.world.level.timers.TimerQueue;
++import org.bukkit.Bukkit;
++import org.bukkit.Server;
++import org.bukkit.command.Command;
++import org.bukkit.command.CommandSender;
++import org.bukkit.configuration.file.FileConfiguration;
++import org.bukkit.generator.BiomeProvider;
++import org.bukkit.generator.ChunkGenerator;
++import org.bukkit.plugin.Plugin;
++import org.bukkit.plugin.PluginDescriptionFile;
++import org.bukkit.plugin.PluginLoader;
++import org.bukkit.plugin.PluginLogger;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
+ 
+ public class ScheduleCommand {
+     private static final SimpleCommandExceptionType ERROR_SAME_TICK = new SimpleCommandExceptionType(Component.translatable("commands.schedule.same_tick"));
+@@ -90,6 +111,128 @@ public class ScheduleCommand {
+         );
+     }
+ 
++    // Folia start - vanilla commands - schedule
++    private static java.util.concurrent.ConcurrentHashMap<String, io.papermc.paper.threadedregions.scheduler.ScheduledTask> tasks = new java.util.concurrent.ConcurrentHashMap<>();
++    private static org.bukkit.plugin.Plugin scheduleCommandPlugin = new org.bukkit.plugin.PluginBase() {
++
++        @Override
++        public File getDataFolder() {
++            throw new UnsupportedOperationException("Not supported.");
++        }
++
++        @Override
++        public PluginDescriptionFile getDescription() {
++            return new PluginDescriptionFile("ScheduleCommandPlugin", "1.0", "test.test");
++        }
++        // Paper start
++        @Override
++        public io.papermc.paper.plugin.configuration.PluginMeta getPluginMeta() {
++            return getDescription();
++        }
++        // Paper end
++
++        @Override
++        public FileConfiguration getConfig() {
++            throw new UnsupportedOperationException("Not supported.");
++        }
++
++        @Override
++        public InputStream getResource(String filename) {
++            throw new UnsupportedOperationException("Not supported.");
++        }
++
++        @Override
++        public void saveConfig() {
++            throw new UnsupportedOperationException("Not supported.");
++        }
++
++        @Override
++        public void saveDefaultConfig() {
++            throw new UnsupportedOperationException("Not supported.");
++        }
++
++        @Override
++        public void saveResource(String resourcePath, boolean replace) {
++            throw new UnsupportedOperationException("Not supported.");
++        }
++
++        @Override
++        public void reloadConfig() {
++            throw new UnsupportedOperationException("Not supported.");
++        }
++
++        @Override
++        public Logger getLogger() {
++            return Bukkit.getLogger();
++        }
++
++        @Override
++        public PluginLoader getPluginLoader() {
++            throw new UnsupportedOperationException("Not supported.");
++        }
++
++        @Override
++        public Server getServer() {
++            throw new UnsupportedOperationException("Not supported.");
++        }
++
++        @Override
++        public boolean isEnabled() {
++            return true;
++        }
++
++        @Override
++        public void onDisable() {
++            throw new UnsupportedOperationException("Not supported.");
++        }
++
++        @Override
++        public void onLoad() {
++            throw new UnsupportedOperationException("Not supported.");
++        }
++
++        @Override
++        public void onEnable() {
++            throw new UnsupportedOperationException("Not supported.");
++        }
++
++        @Override
++        public boolean isNaggable() {
++            throw new UnsupportedOperationException("Not supported.");
++        }
++
++        @Override
++        public void setNaggable(boolean canNag) {
++            throw new UnsupportedOperationException("Not supported.");
++        }
++
++        @Override
++        public ChunkGenerator getDefaultWorldGenerator(String worldName, String id) {
++            throw new UnsupportedOperationException("Not supported.");
++        }
++
++        @Override
++        public BiomeProvider getDefaultBiomeProvider(String worldName, String id) {
++            throw new UnsupportedOperationException("Not supported.");
++        }
++
++        @Override
++        public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
++            throw new UnsupportedOperationException("Not supported.");
++        }
++
++        @Override
++        public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
++            throw new UnsupportedOperationException("Not supported.");
++        }
++
++        @Override
++        public io.papermc.paper.plugin.lifecycle.event.LifecycleEventManager<Plugin> getLifecycleManager() {
++            throw new UnsupportedOperationException("Not supported.");
++        }
++    };
++    // Folia end - vanilla commands - schedule
++
+     private static int schedule(
+         CommandSourceStack source,
+         Pair<ResourceLocation, Either<CommandFunction<CommandSourceStack>, Collection<CommandFunction<CommandSourceStack>>>> function,
+@@ -99,9 +242,12 @@ public class ScheduleCommand {
+         if (time == 0) {
+             throw ERROR_SAME_TICK.create();
+         } else {
++            // Folia start - vanilla commands - scheduler
++            //schedule the function to execute 'time' number of ticks in the future
+             long l = source.getLevel().getGameTime() + time;
+             ResourceLocation resourceLocation = function.getFirst();
+-            TimerQueue<MinecraftServer> scheduledEvents = source.getLevel().serverLevelData.overworldData().getScheduledEvents(); // CraftBukkit - SPIGOT-6667: Use world specific function timer
++            //TimerQueue<MinecraftServer> scheduledEvents = source.getLevel().serverLevelData.overworldData().getScheduledEvents(); // CraftBukkit - SPIGOT-6667: Use world specific function timer
++
+             Optional<CommandFunction<CommandSourceStack>> optional = function.getSecond().left();
+             if (optional.isPresent()) {
+                 if (optional.get() instanceof MacroFunction) {
+@@ -110,29 +256,68 @@ public class ScheduleCommand {
+ 
+                 String string = resourceLocation.toString();
+                 if (append) {
+-                    scheduledEvents.remove(string);
++                    io.papermc.paper.threadedregions.scheduler.ScheduledTask t = tasks.get(string);
++                    if (t != null) {
++                        t.cancel();
++                        tasks.remove(string);
++                    }
++                    //scheduledEvents.remove(string);
+                 }
++                net.minecraft.world.phys.Vec3 pos = source.getPosition();
++                io.papermc.paper.threadedregions.scheduler.ScheduledTask t = Bukkit.getRegionScheduler().runDelayed(scheduleCommandPlugin, source.getLevel().getWorld(), (int)pos.x() >> 4, (int)pos.z() >> 4, (io.papermc.paper.threadedregions.scheduler.ScheduledTask t2) -> {
++                    new FunctionCallback(resourceLocation).handle(source.getServer(), null, l);
++                }, time);
+ 
+-                scheduledEvents.schedule(string, l, new FunctionCallback(resourceLocation));
++                io.papermc.paper.threadedregions.scheduler.ScheduledTask old = tasks.get(string);
++                if (old != null) {
++                    old.cancel();
++                }
++                tasks.put(string, t);
++                //scheduledEvents.schedule(string, l, new FunctionCallback(resourceLocation));
+                 source.sendSuccess(
+                     () -> Component.translatable("commands.schedule.created.function", Component.translationArg(resourceLocation), time, l), true
+                 );
+             } else {
+                 String string = "#" + resourceLocation;
+                 if (append) {
+-                    scheduledEvents.remove(string);
++                    io.papermc.paper.threadedregions.scheduler.ScheduledTask t = tasks.get(string);
++                    if (t != null) {
++                        t.cancel();
++                        tasks.remove(string);
++                    }
++                    //scheduledEvents.remove(string);
+                 }
+-
+-                scheduledEvents.schedule(string, l, new FunctionTagCallback(resourceLocation));
++                io.papermc.paper.threadedregions.scheduler.ScheduledTask old = tasks.get(string);
++                if (old != null) {
++                    old.cancel();
++                }
++                net.minecraft.world.phys.Vec3 pos = source.getPosition();
++                io.papermc.paper.threadedregions.scheduler.ScheduledTask t = Bukkit.getRegionScheduler().runDelayed(scheduleCommandPlugin, source.getLevel().getWorld(), (int)pos.x() >> 4, (int)pos.z() >> 4, (io.papermc.paper.threadedregions.scheduler.ScheduledTask t2) -> {
++                    new FunctionTagCallback(resourceLocation).handle(source.getServer(), null, l);
++                }, time);
++                //scheduledEvents.schedule(string, l, new FunctionTagCallback(resourceLocation));
+                 source.sendSuccess(() -> Component.translatable("commands.schedule.created.tag", Component.translationArg(resourceLocation), time, l), true);
+             }
++            // Folia end - vanilla commands - scheduler
+ 
+             return Math.floorMod(l, Integer.MAX_VALUE);
+         }
+     }
+ 
+     private static int remove(CommandSourceStack source, String function) throws CommandSyntaxException {
+-        int i = source.getLevel().serverLevelData.overworldData().getScheduledEvents().remove(function); // Paper - Make schedule command per-world
++        // Folia start - vanilla commands - scheduler
++        //TimerQueue<MinecraftServer> scheduledEvents = source.getLevel().serverLevelData.overworldData().getScheduledEvents();
++        //int i = scheduledEvents.remove(function); // Paper - Make schedule command per-world
++        int i;
++        io.papermc.paper.threadedregions.scheduler.ScheduledTask t = tasks.get(function);
++        if (t != null) {
++            t.cancel();
++            tasks.remove(function);
++            i = 1;
++        } else {
++            i = 0;
++        }
++        // Folia end - vanilla commands - scheduler
+         if (i == 0) {
+             throw ERROR_CANT_REMOVE.create(function);
+         } else {
+diff --git a/net/minecraft/server/commands/TagCommand.java b/net/minecraft/server/commands/TagCommand.java
+index 6a9411115060bea37c53440aa210ad4cf5f120d1..2a5d996746d0bd8ee500c1aa00e16a02a86b12c2 100644
+--- a/net/minecraft/server/commands/TagCommand.java
++++ b/net/minecraft/server/commands/TagCommand.java
+@@ -75,12 +75,7 @@ public class TagCommand {
+         int i = 0;
+ 
+         for (Entity entity : entities) {
+-            // Folia start - vanilla commands
+-            boolean done = entity.getBukkitEntity().taskScheduler.schedule((Entity nmsEntity) -> {
+-                nmsEntity.addTag(tagName);
+-            }, null, 1L);
+-            if (done) i++;
+-            // Folia end - vanilla commands
++            if (entity.addTag(tagName)) i++;
+         }
+ 
+         if (i == 0) {
+@@ -100,12 +95,7 @@ public class TagCommand {
+         int i = 0;
+ 
+         for (Entity entity : entities) {
+-            // Folia start - vanilla commands
+-            boolean done = entity.getBukkitEntity().taskScheduler.schedule((Entity nmsEntity) -> {
+-                nmsEntity.removeTag(tagName);
+-            }, null, 1L);
+-            if (done) i++;
+-            // Folia end - vanilla commands
++            if (entity.removeTag(tagName)) i++;
+         }
+ 
+         if (i == 0) {
+diff --git a/net/minecraft/server/level/ServerLevel.java b/net/minecraft/server/level/ServerLevel.java
+index 5e3be75b27ed609be005e8169dc84c125518253e..eb36ddef912d9ba03aa84cedefd7fa327804a21e 100644
+--- a/net/minecraft/server/level/ServerLevel.java
++++ b/net/minecraft/server/level/ServerLevel.java
+@@ -2760,7 +2760,7 @@ public class ServerLevel extends Level implements ServerEntityGetter, WorldGenLe
+                 ServerLevel.this.getWaypointManager().untrackWaypoint(waypointTransmitter);
+             }
+ 
+-            //ServerLevel.this.getScoreboard().entityRemoved(entity); // Folia - region threading
++            ServerLevel.this.getScoreboard().entityRemoved(entity); // Folia - vanilla commands scoreboard
+         }
+ 
+         @Override
+diff --git a/net/minecraft/server/players/PlayerList.java b/net/minecraft/server/players/PlayerList.java
+index 976a8982a0b0a9ae459cf08e13d69031d4238eca..14c12da7748891414c92c1044426bc161a060349 100644
+--- a/net/minecraft/server/players/PlayerList.java
++++ b/net/minecraft/server/players/PlayerList.java
+@@ -376,7 +376,7 @@ public abstract class PlayerList {
+             this.sendPlayerPermissionLevel(player);
+             player.getStats().markAllDirty();
+             player.getRecipeBook().sendInitialRecipeBook(player);
+-            //this.updateEntireScoreboard(serverLevel.getScoreboard(), player); // Folia - region threading
++            this.updateEntireScoreboard(serverLevel.getScoreboard(), player); // Folia - vanilla commands re-enable
+             this.server.invalidateStatus();
+             MutableComponent mutableComponent;
+             if (player.getGameProfile().getName().equalsIgnoreCase(string)) {
+diff --git a/net/minecraft/world/entity/Entity.java b/net/minecraft/world/entity/Entity.java
+index cd6ce03d3a7cc66f8ca276d8f5be99a9060b408b..11f61600a0ed2ebbfdfa8ff19c951f5c9d5d6b5e 100644
+--- a/net/minecraft/world/entity/Entity.java
++++ b/net/minecraft/world/entity/Entity.java
+@@ -14,16 +14,8 @@ import it.unimi.dsi.fastutil.longs.LongSet;
+ import it.unimi.dsi.fastutil.objects.Object2DoubleArrayMap;
+ import it.unimi.dsi.fastutil.objects.Object2DoubleMap;
+ import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+-import java.util.ArrayDeque;
+-import java.util.ArrayList;
+-import java.util.Arrays;
+-import java.util.HashSet;
+-import java.util.List;
+-import java.util.Locale;
+-import java.util.Objects;
+-import java.util.Optional;
+-import java.util.Set;
+-import java.util.UUID;
++
++import java.util.*;
+ import java.util.concurrent.atomic.AtomicInteger;
+ import java.util.function.BiConsumer;
+ import java.util.function.Predicate;
+@@ -318,7 +310,7 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
+     protected UUID uuid = Mth.createInsecureUUID(this.random);
+     protected String stringUUID = this.uuid.toString();
+     private boolean hasGlowingTag;
+-    private final Set<String> tags = new io.papermc.paper.util.SizeLimitedSet<>(new it.unimi.dsi.fastutil.objects.ObjectOpenHashSet<>(), MAX_ENTITY_TAG_COUNT); // Paper - fully limit tag size - replace set impl
++    private final Set<String> tags = Collections.synchronizedSet(new io.papermc.paper.util.SizeLimitedSet<>(new it.unimi.dsi.fastutil.objects.ObjectOpenHashSet<>(), MAX_ENTITY_TAG_COUNT)); // Paper - fully limit tag size - replace set impl // Folia - vanilla commands
+     private final double[] pistonDeltas = new double[]{0.0, 0.0, 0.0};
+     private long pistonDeltasGameTime = Long.MIN_VALUE; // Folia - region threading
+     private EntityDimensions dimensions;
+@@ -3583,10 +3575,12 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
+     @Nullable
+     public PlayerTeam getTeam() {
+         // Folia start - region threading
+-        if (true) {
+-            return null;
+-        }
++        // Folia start - vanilla commands re-enable scoreboard
++        //if (true) {
++        //    return null;
++        //}
+         // Folia end - region threading
++        // Folia end - Folia start - vanilla commands re-enable scoreboard
+         if (!this.level().paperConfig().scoreboards.allowNonPlayerEntitiesOnScoreboards && !(this instanceof Player)) { return null; } // Paper - Perf: Disable Scoreboards for non players by default
+         return this.level().getScoreboard().getPlayersTeam(this.getScoreboardName());
+     }
+diff --git a/net/minecraft/world/level/BaseCommandBlock.java b/net/minecraft/world/level/BaseCommandBlock.java
+index e563758afec20fab2567a133a9b72fc9a5207701..f049048f46470f629835171f733128f4d8960409 100644
+--- a/net/minecraft/world/level/BaseCommandBlock.java
++++ b/net/minecraft/world/level/BaseCommandBlock.java
+@@ -155,13 +155,27 @@ public abstract class BaseCommandBlock implements CommandSource {
+ 
+     public void threadCheck() {} // Folia
+ 
++    public boolean isSafeThread() { return false; } // Folia - ensure sendSystemMessage is thread safe
++
+     @Override
+     public void sendSystemMessage(Component component) {
+         if (this.trackOutput) {
+-            org.spigotmc.AsyncCatcher.catchOp("sendSystemMessage to a command block"); // Paper - Don't broadcast messages to command blocks
+-            this.threadCheck(); // Folia
+-            this.lastOutput = Component.literal("[" + TIME_FORMAT.get().format(new Date()) + "] ").append(component); // Folia - region threading - SDF is not thread-safe
+-            this.onUpdated();
++            //org.spigotmc.AsyncCatcher.catchOp("sendSystemMessage to a command block"); // Paper - Don't broadcast messages to command blocks
++            //this.threadCheck(); // Folia
++            Component c = Component.literal("[" + TIME_FORMAT.get().format(new Date()) + "] ").append(component); // Folia - region threading - SDF is not thread-safe
++            // Folia start - ensure command block updates are thread safe
++            if (this.isSafeThread()) {
++                this.lastOutput = c;
++                this.onUpdated();
++            } else {
++                Vec3 pos = this.getPosition();
++                io.papermc.paper.threadedregions.RegionizedServer.getInstance().taskQueue.queueTickTaskQueue(
++                        getLevel(), ((int)pos.x()) >> 4, ((int)pos.z()) >> 4, () -> {
++                            this.lastOutput = c;
++                            this.onUpdated();
++                        });
++            }
++            // Folia end - ensure command block updates are thread safe
+         }
+     }
+ 
+diff --git a/net/minecraft/world/level/block/entity/CommandBlockEntity.java b/net/minecraft/world/level/block/entity/CommandBlockEntity.java
+index d92564d51d81ad4a9d4a05bce69d9ce5eb552600..f3eaeb0a27a98915237a567f863f14f532348932 100644
+--- a/net/minecraft/world/level/block/entity/CommandBlockEntity.java
++++ b/net/minecraft/world/level/block/entity/CommandBlockEntity.java
+@@ -75,6 +75,11 @@ public class CommandBlockEntity extends BlockEntity {
+         public void threadCheck() {
+             ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread((ServerLevel) CommandBlockEntity.this.level, CommandBlockEntity.this.worldPosition, "Asynchronous sendSystemMessage to a command block");
+         }
++
++        @Override
++        public boolean isSafeThread() {
++            return ca.spottedleaf.moonrise.common.util.TickThread.isTickThreadFor(CommandBlockEntity.this.level, CommandBlockEntity.this.worldPosition);
++        }
+         // Folia end
+ 
+         @Override
+diff --git a/net/minecraft/world/scores/Scoreboard.java b/net/minecraft/world/scores/Scoreboard.java
+index bb89634c0a8886a5d30651d0561740ce24f3c9b7..8b2ca0eae176193be179ad3d50178c6f22422524 100644
+--- a/net/minecraft/world/scores/Scoreboard.java
++++ b/net/minecraft/world/scores/Scoreboard.java
+@@ -13,6 +13,7 @@ import java.util.EnumMap;
+ import java.util.List;
+ import java.util.Map;
+ import java.util.Objects;
++import java.util.concurrent.ConcurrentHashMap;
+ import java.util.function.Consumer;
+ import javax.annotation.Nullable;
+ import net.minecraft.network.chat.Component;
+@@ -34,6 +35,12 @@ public class Scoreboard {
+     private final Map<DisplaySlot, Objective> displayObjectives = new EnumMap<>(DisplaySlot.class);
+     private final Object2ObjectMap<String, PlayerTeam> teamsByName = Object2ObjectMaps.synchronize(new Object2ObjectOpenHashMap<>());
+     private final Object2ObjectMap<String, PlayerTeam> teamsByPlayer = Object2ObjectMaps.synchronize(new Object2ObjectOpenHashMap<>());
++    /*private final ConcurrentHashMap<String, Objective> objectivesByName = new ConcurrentHashMap<>(16, 0.5F);
++    private final ConcurrentHashMap<ObjectiveCriteria, List<Objective>> objectivesByCriteria = new ConcurrentHashMap<>();
++    private final Map<String, PlayerScores> playerScores = new ConcurrentHashMap<>(16, 0.5F);
++    private final Map<DisplaySlot, Objective> displayObjectives = new EnumMap<>(DisplaySlot.class);
++    private final ConcurrentHashMap<String, PlayerTeam> teamsByName = new ConcurrentHashMap<>();
++    private final ConcurrentHashMap<String, PlayerTeam> teamsByPlayer = new ConcurrentHashMap<>();*/
+     // Folia end - vanilla commands
+ 
+     @Nullable
