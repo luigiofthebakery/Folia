@@ -2,7 +2,7 @@
     <img src="./folia.png">
     <br /><br />
     <p>Fork of <a href="https://github.com/PaperMC/Paper">Paper</a> which adds regionised multithreading to the dedicated server.</p>
-    <p>Now with command block and scoreboard support!</p>
+    <h1>Now with command block and scoreboard support!</h1>
 </div>
 
 ## Overview
