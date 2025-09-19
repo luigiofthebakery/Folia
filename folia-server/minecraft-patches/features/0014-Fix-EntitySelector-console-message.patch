@@ -1,0 +1,128 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: root <root@iDeas20.localdomain>
+Date: Fri, 19 Sep 2025 22:51:07 +1000
+Subject: [PATCH] Fix EntitySelector console message
+
+
+diff --git a/net/minecraft/commands/arguments/selector/EntitySelector.java b/net/minecraft/commands/arguments/selector/EntitySelector.java
+index 10087f62f7cc7f46468df1497088ae514c84c00c..ebf87c9e91dc8725c28c22b0a2fd8eb1531146b4 100644
+--- a/net/minecraft/commands/arguments/selector/EntitySelector.java
++++ b/net/minecraft/commands/arguments/selector/EntitySelector.java
+@@ -14,6 +14,7 @@ import net.minecraft.commands.CommandSourceStack;
+ import net.minecraft.commands.arguments.EntityArgument;
+ import net.minecraft.network.chat.Component;
+ import net.minecraft.network.chat.ComponentUtils;
++import net.minecraft.server.MinecraftServer;
+ import net.minecraft.server.level.FullChunkStatus;
+ import net.minecraft.server.level.ServerLevel;
+ import net.minecraft.server.level.ServerPlayer;
+@@ -170,13 +171,14 @@ public class EntitySelector {
+         if (entities.size() < resultLimit) {
+             if (box != null) {
+                 // Folia start - vanilla commands
+-                try {
++                if (ca.spottedleaf.moonrise.common.util.TickThread.isTickThreadFor(level, box)) {
+                     level.getEntities(this.type, box, predicate, entities, resultLimit);
+-                } catch (IllegalStateException e) {
++                } else {
+                     Profiler.get().incrementCounter("getEntities");
+                     // if this AABB box contains non-threadsafe chunks, then iterate over each chunk individually and only get entities from it if thread safe
+                     net.minecraft.util.AbortableIterationConsumer<ca.spottedleaf.moonrise.patches.chunk_system.level.entity.ChunkEntitySlices> consumeChunk;
+ 
++                    int method;
+                     // the following is similar to Level#getEntities() (line 1813) but does not have moonrise hooks (ca.spottedleaf.moonrise.common.PlatformHooks.get().addToGetEntities)
+                     if (this.type instanceof net.minecraft.world.entity.EntityType<?> byType) {
+                         if (resultLimit != Integer.MAX_VALUE) {
+@@ -188,7 +190,7 @@ public class EntitySelector {
+                                 }
+                                 return net.minecraft.util.AbortableIterationConsumer.Continuation.CONTINUE;
+                             };
+-
++                            method = 1;
+                         } else {
+                             //((ca.spottedleaf.moonrise.patches.chunk_system.level.ChunkSystemLevel)this).moonrise$getEntityLookup().getEntities(byType, boundingBox, into, predicate);
+                             //ca.spottedleaf.moonrise.common.PlatformHooks.get().addToGetEntities((Level)(Object)this, entityTypeTest, boundingBox, predicate, into, maxCount);
+@@ -196,7 +198,7 @@ public class EntitySelector {
+                                 slices.getEntities(byType, box, entities, predicate);
+                                 return net.minecraft.util.AbortableIterationConsumer.Continuation.CONTINUE;
+                             };
+-
++                            method = 2;
+                         }
+                     } else if (this.type == null) {
+                         if (resultLimit != Integer.MAX_VALUE) {
+@@ -208,6 +210,7 @@ public class EntitySelector {
+                                 }
+                                 return net.minecraft.util.AbortableIterationConsumer.Continuation.CONTINUE;
+                             };
++                            method = 3;
+                         } else {
+                             //((ca.spottedleaf.moonrise.patches.chunk_system.level.ChunkSystemLevel)this).moonrise$getEntityLookup().getEntities((Entity)null, boundingBox, (List)into, (Predicate)predicate);
+                             //ca.spottedleaf.moonrise.common.PlatformHooks.get().addToGetEntities((Level)(Object)this, entityTypeTest, boundingBox, predicate, into, maxCount);
+@@ -215,6 +218,7 @@ public class EntitySelector {
+                                 slices.getEntities((Entity)null, box, entities, predicate);
+                                 return net.minecraft.util.AbortableIterationConsumer.Continuation.CONTINUE;
+                             };
++                            method = 4;
+                         }
+                     } else {
+ 
+@@ -244,6 +248,7 @@ public class EntitySelector {
+                                 }
+                                 return net.minecraft.util.AbortableIterationConsumer.Continuation.CONTINUE;
+                             };
++                            method = 5;
+                         } else {
+                             //((ca.spottedleaf.moonrise.patches.chunk_system.level.ChunkSystemLevel)this).moonrise$getEntityLookup().getEntities((Entity)null, boundingBox, (List)into, (Predicate)modifiedPredicate);
+                             //ca.spottedleaf.moonrise.common.PlatformHooks.get().addToGetEntities((Level)(Object)this, entityTypeTest, boundingBox, predicate, into, maxCount);
+@@ -251,6 +256,7 @@ public class EntitySelector {
+                                 slices.getEntities((Entity)null, box, entities, modifiedPredicate);
+                                 return net.minecraft.util.AbortableIterationConsumer.Continuation.CONTINUE;
+                             };
++                            method = 6;
+                         }
+                     } else {
+                         if (resultLimit != Integer.MAX_VALUE) {
+@@ -262,6 +268,7 @@ public class EntitySelector {
+                                 }
+                                 return net.minecraft.util.AbortableIterationConsumer.Continuation.CONTINUE;
+                             };
++                            method = 7;
+                         } else {
+                             //((ca.spottedleaf.moonrise.patches.chunk_system.level.ChunkSystemLevel)this).moonrise$getEntityLookup().getEntities(base, null, boundingBox, (List)into, (Predicate)modifiedPredicate);
+                             //ca.spottedleaf.moonrise.common.PlatformHooks.get().addToGetEntities((Level)(Object)this, entityTypeTest, boundingBox, predicate, into, maxCount);
+@@ -269,6 +276,7 @@ public class EntitySelector {
+                                 slices.getEntities(base, null, box, entities, modifiedPredicate);
+                                 return net.minecraft.util.AbortableIterationConsumer.Continuation.CONTINUE;
+                             };
++                            method = 8;
+                         }
+                     }}
+ 
+@@ -277,20 +285,26 @@ public class EntitySelector {
+                     int fromChunkZ = ca.spottedleaf.moonrise.common.util.CoordinateUtils.getChunkCoordinate(box.minZ);
+                     int toChunkX = ca.spottedleaf.moonrise.common.util.CoordinateUtils.getChunkCoordinate(box.maxX);
+                     int toChunkZ = ca.spottedleaf.moonrise.common.util.CoordinateUtils.getChunkCoordinate(box.maxZ);
++                    int safeChunkCount = 0;
++                    int totalChunkCount = 0;
+                     for (int z = fromChunkZ; z <= toChunkZ; ++z) {
+                         for (int x = fromChunkX; x <= toChunkX; ++x) {
++                            totalChunkCount++;
+                             if (ca.spottedleaf.moonrise.common.util.TickThread.isTickThreadFor(level, x, z)) {
++                                safeChunkCount++;
+                                 ca.spottedleaf.moonrise.patches.chunk_system.level.entity.ChunkEntitySlices slices = level.moonrise$getEntityLookup().getChunk(x, z);
+                                 if (slices == null || !slices.status.isOrAfter(FullChunkStatus.FULL)) {
+                                     continue;
+                                 }
+ 
+                                 if (consumeChunk.accept(slices).shouldAbort()) {
++                                    MinecraftServer.LOGGER.info("Experimental getEntities from EntitySelector (method "+method+"), safe chunks = "+safeChunkCount+"/"+totalChunkCount+", world="+level+", bbox="+box.toString());
+                                     return;
+                                 }
+                             }
+                         }
+                     }
++                    MinecraftServer.LOGGER.info("Experimental getEntities from EntitySelector (method "+method+"), safe chunks = "+safeChunkCount+"/"+totalChunkCount+", world="+level+", bbox="+box.toString());
+                 }
+                 // Folia end - vanilla commands
+             } else {

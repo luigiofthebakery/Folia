@@ -1,0 +1,228 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: root <root@iDeas20.localdomain>
+Date: Fri, 19 Sep 2025 22:13:44 +1000
+Subject: [PATCH] Entity selector and SetCommandBlock fixes
+
+
+diff --git a/net/minecraft/commands/arguments/EntityArgument.java b/net/minecraft/commands/arguments/EntityArgument.java
+index 8f6a1788b5ca396b79a638955fc6a6b3a276337f..2f6eaccdf12e9593370dbdb7d1e7a67077b66293 100644
+--- a/net/minecraft/commands/arguments/EntityArgument.java
++++ b/net/minecraft/commands/arguments/EntityArgument.java
+@@ -57,12 +57,23 @@ public class EntityArgument implements ArgumentType<EntitySelector> {
+     }
+ 
+     public static Collection<? extends Entity> getEntities(CommandContext<CommandSourceStack> context, String name) throws CommandSyntaxException {
++        try { // Folia - vanilla commands - prevent crash
+         Collection<? extends Entity> optionalEntities = getOptionalEntities(context, name);
+         if (optionalEntities.isEmpty()) {
+             throw NO_ENTITIES_FOUND.create();
+         } else {
+             return optionalEntities;
+         }
++        // Folia start - vanilla commands - prevent crash
++        } catch (IllegalArgumentException e) {
++            java.io.StringWriter sw = new java.io.StringWriter();
++            java.io.PrintWriter pw = new java.io.PrintWriter(sw);
++            e.printStackTrace(pw);
++            String stackTrace = sw.toString();
++            org.bukkit.Bukkit.getLogger().severe("An error occurred: " + stackTrace);
++            throw NO_ENTITIES_FOUND.create();
++        }
++        // Folia end - vanilla commands - prevent crash
+     }
+ 
+     public static Collection<? extends Entity> getOptionalEntities(CommandContext<CommandSourceStack> context, String name) throws CommandSyntaxException {
+diff --git a/net/minecraft/commands/arguments/selector/EntitySelector.java b/net/minecraft/commands/arguments/selector/EntitySelector.java
+index 514f8fbdeb776087608665c35de95294aadf5cf0..10087f62f7cc7f46468df1497088ae514c84c00c 100644
+--- a/net/minecraft/commands/arguments/selector/EntitySelector.java
++++ b/net/minecraft/commands/arguments/selector/EntitySelector.java
+@@ -14,8 +14,10 @@ import net.minecraft.commands.CommandSourceStack;
+ import net.minecraft.commands.arguments.EntityArgument;
+ import net.minecraft.network.chat.Component;
+ import net.minecraft.network.chat.ComponentUtils;
++import net.minecraft.server.level.FullChunkStatus;
+ import net.minecraft.server.level.ServerLevel;
+ import net.minecraft.server.level.ServerPlayer;
++import net.minecraft.util.profiling.Profiler;
+ import net.minecraft.world.entity.Entity;
+ import net.minecraft.world.entity.EntityType;
+ import net.minecraft.world.flag.FeatureFlagSet;
+@@ -167,7 +169,130 @@ public class EntitySelector {
+         int resultLimit = this.getResultLimit();
+         if (entities.size() < resultLimit) {
+             if (box != null) {
+-                level.getEntities(this.type, box, predicate, entities, resultLimit);
++                // Folia start - vanilla commands
++                try {
++                    level.getEntities(this.type, box, predicate, entities, resultLimit);
++                } catch (IllegalStateException e) {
++                    Profiler.get().incrementCounter("getEntities");
++                    // if this AABB box contains non-threadsafe chunks, then iterate over each chunk individually and only get entities from it if thread safe
++                    net.minecraft.util.AbortableIterationConsumer<ca.spottedleaf.moonrise.patches.chunk_system.level.entity.ChunkEntitySlices> consumeChunk;
++
++                    // the following is similar to Level#getEntities() (line 1813) but does not have moonrise hooks (ca.spottedleaf.moonrise.common.PlatformHooks.get().addToGetEntities)
++                    if (this.type instanceof net.minecraft.world.entity.EntityType<?> byType) {
++                        if (resultLimit != Integer.MAX_VALUE) {
++                            //((ca.spottedleaf.moonrise.patches.chunk_system.level.ChunkSystemLevel)this).moonrise$getEntityLookup().getEntities(byType, boundingBox, into, predicate, maxCount);
++                            //ca.spottedleaf.moonrise.common.PlatformHooks.get().addToGetEntities((Level)(Object)this, entityTypeTest, boundingBox, predicate, into, maxCount);
++                            consumeChunk = (ca.spottedleaf.moonrise.patches.chunk_system.level.entity.ChunkEntitySlices slices) -> {
++                                if (slices.getEntities(byType, box, entities, predicate, resultLimit)) {
++                                    return net.minecraft.util.AbortableIterationConsumer.Continuation.ABORT;
++                                }
++                                return net.minecraft.util.AbortableIterationConsumer.Continuation.CONTINUE;
++                            };
++
++                        } else {
++                            //((ca.spottedleaf.moonrise.patches.chunk_system.level.ChunkSystemLevel)this).moonrise$getEntityLookup().getEntities(byType, boundingBox, into, predicate);
++                            //ca.spottedleaf.moonrise.common.PlatformHooks.get().addToGetEntities((Level)(Object)this, entityTypeTest, boundingBox, predicate, into, maxCount);
++                            consumeChunk = (ca.spottedleaf.moonrise.patches.chunk_system.level.entity.ChunkEntitySlices slices) -> {
++                                slices.getEntities(byType, box, entities, predicate);
++                                return net.minecraft.util.AbortableIterationConsumer.Continuation.CONTINUE;
++                            };
++
++                        }
++                    } else if (this.type == null) {
++                        if (resultLimit != Integer.MAX_VALUE) {
++                            //((ca.spottedleaf.moonrise.patches.chunk_system.level.ChunkSystemLevel)this).moonrise$getEntityLookup().getEntities((Entity)null, boundingBox, (List)into, (Predicate)predicate, maxCount);
++                            //ca.spottedleaf.moonrise.common.PlatformHooks.get().addToGetEntities((Level)(Object)this, entityTypeTest, boundingBox, predicate, into, maxCount);
++                            consumeChunk = (ca.spottedleaf.moonrise.patches.chunk_system.level.entity.ChunkEntitySlices slices) -> {
++                                if (slices.getEntities((Entity)null, box, entities, predicate, resultLimit)) {
++                                    return net.minecraft.util.AbortableIterationConsumer.Continuation.ABORT;
++                                }
++                                return net.minecraft.util.AbortableIterationConsumer.Continuation.CONTINUE;
++                            };
++                        } else {
++                            //((ca.spottedleaf.moonrise.patches.chunk_system.level.ChunkSystemLevel)this).moonrise$getEntityLookup().getEntities((Entity)null, boundingBox, (List)into, (Predicate)predicate);
++                            //ca.spottedleaf.moonrise.common.PlatformHooks.get().addToGetEntities((Level)(Object)this, entityTypeTest, boundingBox, predicate, into, maxCount);
++                            consumeChunk = (ca.spottedleaf.moonrise.patches.chunk_system.level.entity.ChunkEntitySlices slices) -> {
++                                slices.getEntities((Entity)null, box, entities, predicate);
++                                return net.minecraft.util.AbortableIterationConsumer.Continuation.CONTINUE;
++                            };
++                        }
++                    } else {
++
++                    final Class<? extends Entity> base = this.type.getBaseClass();
++                    Predicate<Entity> modifiedPredicate;
++                    if (predicate == null) {
++                        modifiedPredicate = (final Entity obj) -> {
++                            return this.type.tryCast(obj) != null;
++                        };
++                    } else {
++                        modifiedPredicate = (final Entity obj) -> {
++                            final Entity casted = this.type.tryCast(obj);
++                            if (casted == null) {
++                                return false;
++                            }
++
++                            return predicate.test(casted);
++                        };
++                    }
++                    if (base == null || base == Entity.class) {
++                        if (resultLimit != Integer.MAX_VALUE) {
++                            //((ca.spottedleaf.moonrise.patches.chunk_system.level.ChunkSystemLevel)this).moonrise$getEntityLookup().getEntities((Entity)null, boundingBox, (List)into, (Predicate)modifiedPredicate, maxCount);
++                            //ca.spottedleaf.moonrise.common.PlatformHooks.get().addToGetEntities((Level)(Object)this, entityTypeTest, boundingBox, predicate, into, maxCount);
++                            consumeChunk = (ca.spottedleaf.moonrise.patches.chunk_system.level.entity.ChunkEntitySlices slices) -> {
++                                if (slices.getEntities((Entity)null, box, entities, modifiedPredicate, resultLimit)) {
++                                    return net.minecraft.util.AbortableIterationConsumer.Continuation.ABORT;
++                                }
++                                return net.minecraft.util.AbortableIterationConsumer.Continuation.CONTINUE;
++                            };
++                        } else {
++                            //((ca.spottedleaf.moonrise.patches.chunk_system.level.ChunkSystemLevel)this).moonrise$getEntityLookup().getEntities((Entity)null, boundingBox, (List)into, (Predicate)modifiedPredicate);
++                            //ca.spottedleaf.moonrise.common.PlatformHooks.get().addToGetEntities((Level)(Object)this, entityTypeTest, boundingBox, predicate, into, maxCount);
++                            consumeChunk = (ca.spottedleaf.moonrise.patches.chunk_system.level.entity.ChunkEntitySlices slices) -> {
++                                slices.getEntities((Entity)null, box, entities, modifiedPredicate);
++                                return net.minecraft.util.AbortableIterationConsumer.Continuation.CONTINUE;
++                            };
++                        }
++                    } else {
++                        if (resultLimit != Integer.MAX_VALUE) {
++                            //((ca.spottedleaf.moonrise.patches.chunk_system.level.ChunkSystemLevel)this).moonrise$getEntityLookup().getEntities(base, null, boundingBox, (List)into, (Predicate)modifiedPredicate, maxCount);
++                            //ca.spottedleaf.moonrise.common.PlatformHooks.get().addToGetEntities((Level)(Object)this, entityTypeTest, boundingBox, predicate, into, maxCount);
++                            consumeChunk = (ca.spottedleaf.moonrise.patches.chunk_system.level.entity.ChunkEntitySlices slices) -> {
++                                if (slices.getEntities(base, null, box, entities, modifiedPredicate, resultLimit)) {
++                                    return net.minecraft.util.AbortableIterationConsumer.Continuation.ABORT;
++                                }
++                                return net.minecraft.util.AbortableIterationConsumer.Continuation.CONTINUE;
++                            };
++                        } else {
++                            //((ca.spottedleaf.moonrise.patches.chunk_system.level.ChunkSystemLevel)this).moonrise$getEntityLookup().getEntities(base, null, boundingBox, (List)into, (Predicate)modifiedPredicate);
++                            //ca.spottedleaf.moonrise.common.PlatformHooks.get().addToGetEntities((Level)(Object)this, entityTypeTest, boundingBox, predicate, into, maxCount);
++                            consumeChunk = (ca.spottedleaf.moonrise.patches.chunk_system.level.entity.ChunkEntitySlices slices) -> {
++                                slices.getEntities(base, null, box, entities, modifiedPredicate);
++                                return net.minecraft.util.AbortableIterationConsumer.Continuation.CONTINUE;
++                            };
++                        }
++                    }}
++
++
++                    int fromChunkX = ca.spottedleaf.moonrise.common.util.CoordinateUtils.getChunkCoordinate(box.minX);
++                    int fromChunkZ = ca.spottedleaf.moonrise.common.util.CoordinateUtils.getChunkCoordinate(box.minZ);
++                    int toChunkX = ca.spottedleaf.moonrise.common.util.CoordinateUtils.getChunkCoordinate(box.maxX);
++                    int toChunkZ = ca.spottedleaf.moonrise.common.util.CoordinateUtils.getChunkCoordinate(box.maxZ);
++                    for (int z = fromChunkZ; z <= toChunkZ; ++z) {
++                        for (int x = fromChunkX; x <= toChunkX; ++x) {
++                            if (ca.spottedleaf.moonrise.common.util.TickThread.isTickThreadFor(level, x, z)) {
++                                ca.spottedleaf.moonrise.patches.chunk_system.level.entity.ChunkEntitySlices slices = level.moonrise$getEntityLookup().getChunk(x, z);
++                                if (slices == null || !slices.status.isOrAfter(FullChunkStatus.FULL)) {
++                                    continue;
++                                }
++
++                                if (consumeChunk.accept(slices).shouldAbort()) {
++                                    return;
++                                }
++                            }
++                        }
++                    }
++                }
++                // Folia end - vanilla commands
+             } else {
+                 level.getEntities(this.type, predicate, entities, resultLimit);
+             }
+diff --git a/net/minecraft/server/commands/SetBlockCommand.java b/net/minecraft/server/commands/SetBlockCommand.java
+index 07cff4e1e7af98cf3ead1f255557c1a994072610..d87a6725dc5024be0f21e0b5b2455cd0760b5dc5 100644
+--- a/net/minecraft/server/commands/SetBlockCommand.java
++++ b/net/minecraft/server/commands/SetBlockCommand.java
+@@ -106,7 +106,41 @@ public class SetBlockCommand {
+         CommandSourceStack source, BlockPos pos, BlockInput block, SetBlockCommand.Mode mode, @Nullable Predicate<BlockInWorld> filter, boolean strict
+     ) throws CommandSyntaxException {
+         ServerLevel level = source.getLevel();
+-        // Folia start - region threading
++        // Folia start - vanilla commands
++        if (ca.spottedleaf.moonrise.common.util.TickThread.isTickThreadFor(level, pos)) {
++            // set the block immediately as the thread is safe
++            try {
++                // Folia end - region threading
++                if (level.isDebug()) {
++                    throw ERROR_FAILED.create();
++                } else if (filter != null && !filter.test(new BlockInWorld(level, pos, true))) {
++                    throw ERROR_FAILED.create();
++                } else {
++                    boolean flag;
++                    if (mode == SetBlockCommand.Mode.DESTROY) {
++                        level.destroyBlock(pos, true);
++                        flag = !block.getState().isAir() || !level.getBlockState(pos).isAir();
++                    } else {
++                        flag = true;
++                    }
++
++                    BlockState blockState = level.getBlockState(pos);
++                    if (flag && !block.place(level, pos, 2 | (strict ? 816 : 256))) {
++                        throw ERROR_FAILED.create();
++                    } else {
++                        if (!strict) {
++                            level.updateNeighboursOnBlockSet(pos, blockState);
++                        }
++
++                        source.sendSuccess(() -> Component.translatable("commands.setblock.success", pos.getX(), pos.getY(), pos.getZ()), true);
++                    }
++                }
++            } catch (CommandSyntaxException ex) {
++                sendMessage(source, ex);
++            }
++            return 1;
++        } // Folia end - vanilla commands
++        //Folia start - region threading
+         io.papermc.paper.threadedregions.RegionizedServer.getInstance().taskQueue.queueTickTaskQueue(
+                 level, pos.getX() >> 4, pos.getZ() >> 4, () -> {
+                     try {

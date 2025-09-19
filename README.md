@@ -1,9 +1,8 @@
 <div align=center>
     <img src="./folia.png">
     <br /><br />
-    <p>Fork of <a href="https://github.com/PaperMC/Paper">Paper</a> which adds regionised multithreading to the dedicated server.</p>
     <h1>Now with command block and scoreboard support!</h1>
-    <p>The aim of this fork is to re-enable vanilla commands, scoreboard and command blocks. The way this is accomplished is by using ConcurrentHashMap or synchronised maps, and making use of the Folia schedulers to maintain Folia's synchronisation rules, avoid race conditions and main thread safety. Note that a caveat of this is that commands may execute out of sequence (datapack functions may break or have unexpected behaviour) or the effects may be delayed to the subsequent tick, particularly if the target is located in a region other than the one of the command source.</p>
+    <p>The aim of this fork is to re-enable vanilla commands, scoreboard and command blocks. The way this is accomplished is by using ConcurrentHashMap or synchronised maps, and making use of the Folia schedulers to maintain Folia's synchronisation rules, avoid race conditions and maintain thread safety. Note that a caveat of this is that commands may execute out of sequence (datapack functions may break or have unexpected behaviour) or the effects may be delayed to the subsequent tick, particularly if the target is located in a region other than the one of the command source.</p>
 </div>
 
 ## Overview
