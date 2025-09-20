@@ -1,0 +1,78 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: root <root@iDeas20.localdomain>
+Date: Sat, 20 Sep 2025 17:19:26 +1000
+Subject: [PATCH] PlayerChangeWorldEvent
+
+
+diff --git a/net/minecraft/commands/arguments/EntityArgument.java b/net/minecraft/commands/arguments/EntityArgument.java
+index 2f6eaccdf12e9593370dbdb7d1e7a67077b66293..6cdae77e422967afb055fde86ca56786ed3531eb 100644
+--- a/net/minecraft/commands/arguments/EntityArgument.java
++++ b/net/minecraft/commands/arguments/EntityArgument.java
+@@ -66,11 +66,11 @@ public class EntityArgument implements ArgumentType<EntitySelector> {
+         }
+         // Folia start - vanilla commands - prevent crash
+         } catch (IllegalArgumentException e) {
+-            java.io.StringWriter sw = new java.io.StringWriter();
++            /*java.io.StringWriter sw = new java.io.StringWriter();
+             java.io.PrintWriter pw = new java.io.PrintWriter(sw);
+             e.printStackTrace(pw);
+             String stackTrace = sw.toString();
+-            org.bukkit.Bukkit.getLogger().severe("An error occurred: " + stackTrace);
++            org.bukkit.Bukkit.getLogger().severe("An error occurred: " + stackTrace);*/
+             throw NO_ENTITIES_FOUND.create();
+         }
+         // Folia end - vanilla commands - prevent crash
+diff --git a/net/minecraft/server/commands/DialogCommand.java b/net/minecraft/server/commands/DialogCommand.java
+index 2d5fc4e7358632c4eb011bdfb969d3ae1e2611d6..f34d5e8d396b9619cc2b323ec147c8c50652871a 100644
+--- a/net/minecraft/server/commands/DialogCommand.java
++++ b/net/minecraft/server/commands/DialogCommand.java
+@@ -67,7 +67,7 @@ public class DialogCommand {
+         for (ServerPlayer serverPlayer : targets) {
+             // Folia start - vanilla commands
+             serverPlayer.getBukkitEntity().taskScheduler.schedule((ServerPlayer nmsEntity) -> {
+-                serverPlayer.connection.send(ClientboundClearDialogPacket.INSTANCE);
++                nmsEntity.connection.send(ClientboundClearDialogPacket.INSTANCE);
+             }, null, 1L);
+             // Folia end - vanilla commands
+         }
+diff --git a/net/minecraft/world/entity/Entity.java b/net/minecraft/world/entity/Entity.java
+index 11f61600a0ed2ebbfdfa8ff19c951f5c9d5d6b5e..54844777707d411b595af3d4f9feaf9ce777ed53 100644
+--- a/net/minecraft/world/entity/Entity.java
++++ b/net/minecraft/world/entity/Entity.java
+@@ -4347,6 +4347,14 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
+                 return true;
+             }
+         }
++        // Folia start - PlayerChangedWorldEvent
++        else if (this instanceof ServerPlayer) {
++            this.getBukkitEntity().taskScheduler.schedule((Entity entity) -> {
++                org.bukkit.event.player.PlayerChangedWorldEvent changeEvent = new org.bukkit.event.player.PlayerChangedWorldEvent(((ServerPlayer)entity).getBukkitEntity(), this.level().getWorld());
++                org.bukkit.Bukkit.getPluginManager().callEvent(changeEvent);
++            }, null, 1L);
++        }
++        // Folia end - PlayerChangedWorldEvent
+ 
+         EntityTreeNode passengerTree = this.detachPassengers();
+         List<EntityTreeNode> fullPassengerTree = passengerTree.getFullTree();
+diff --git a/net/minecraft/world/scores/Scoreboard.java b/net/minecraft/world/scores/Scoreboard.java
+index 8b2ca0eae176193be179ad3d50178c6f22422524..99e79bcbe71c9e04f16a2b1a62a98e2421617798 100644
+--- a/net/minecraft/world/scores/Scoreboard.java
++++ b/net/minecraft/world/scores/Scoreboard.java
+@@ -382,7 +382,7 @@ public class Scoreboard {
+     }
+ 
+     protected List<Scoreboard.PackedScore> packPlayerScores() {
+-        synchronized (this.playerScores) {
++        synchronized (this.playerScores) { // Folia - vanilla commands
+             return this.playerScores
+                     .entrySet()
+                     .stream()
+@@ -397,7 +397,7 @@ public class Scoreboard {
+                             }
+                     )
+                     .toList();
+-        }
++        } // Folia - vanilla commands
+     }
+ 
+     protected void loadPlayerScore(Scoreboard.PackedScore score) {

@@ -1,0 +1,26 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: root <root@iDeas20.localdomain>
+Date: Fri, 19 Sep 2025 23:20:07 +1000
+Subject: [PATCH] Disable logging for experimental EntitySelector
+
+
+diff --git a/net/minecraft/commands/arguments/selector/EntitySelector.java b/net/minecraft/commands/arguments/selector/EntitySelector.java
+index ebf87c9e91dc8725c28c22b0a2fd8eb1531146b4..d9c3ef3bbb9ae3282bd46b1f261cb9dba1326bb4 100644
+--- a/net/minecraft/commands/arguments/selector/EntitySelector.java
++++ b/net/minecraft/commands/arguments/selector/EntitySelector.java
+@@ -298,13 +298,13 @@ public class EntitySelector {
+                                 }
+ 
+                                 if (consumeChunk.accept(slices).shouldAbort()) {
+-                                    MinecraftServer.LOGGER.info("Experimental getEntities from EntitySelector (method "+method+"), safe chunks = "+safeChunkCount+"/"+totalChunkCount+", world="+level+", bbox="+box.toString());
++                                    //MinecraftServer.LOGGER.info("Experimental getEntities from EntitySelector (method "+method+"), safe chunks = "+safeChunkCount+"/"+totalChunkCount+", world="+level+", bbox="+box.toString());
+                                     return;
+                                 }
+                             }
+                         }
+                     }
+-                    MinecraftServer.LOGGER.info("Experimental getEntities from EntitySelector (method "+method+"), safe chunks = "+safeChunkCount+"/"+totalChunkCount+", world="+level+", bbox="+box.toString());
++                    //MinecraftServer.LOGGER.info("Experimental getEntities from EntitySelector (method "+method+"), safe chunks = "+safeChunkCount+"/"+totalChunkCount+", world="+level+", bbox="+box.toString());
+                 }
+                 // Folia end - vanilla commands
+             } else {
